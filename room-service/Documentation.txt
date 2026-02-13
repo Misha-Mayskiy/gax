@@ -1,0 +1,334 @@
+┌─────────────────────────────────────────────┐
+│                    Client                   │
+│  (Web/Mobile App)                           │
+└──────────────┬──────────────────────────────┘
+               │ WebSocket/SSE
+               ▼
+┌─────────────────────────────────────────────┐
+│               Room Service                  │
+│  - gRPC API (управление комнатами)          │
+│  - WebSocket/SSE (синхронизация состояния)  │
+│  - Redis (хранение состояния комнат)        │
+└─────────────────────────────────────────────┘
+               │
+               ▼
+┌─────────────────────────────────────────────┐
+│              Audio Service                  │
+│  - Обработка аудиофайлов                    │
+│  - Потоковая передача                       │
+└─────────────────────────────────────────────┘
+Документация Room Service
+     Обзор
+    Room Service — это микросервис для синхронного прослушивания музыки в реальном времени. Позволяет создавать "комнаты", где пользователи могут совместно слушать треки с синхронизированным воспроизведением, управляемым хостом. Реализован на основе gRPC для API и WebSocket для real-time событий.
+
+     Архитектура
+    Компоненты системы
+    text
+    room-service/
+    ├── cmd/
+    │   └── room-service/
+    │       └── main.go              # Точка входа
+    ├── internal/
+    │   ├── domain/                  # Модели данных
+    │   ├── repository/              # Хранилище (Redis)
+    │   ├── service/                 # Бизнес-логика
+    │   └── transport/
+    │       ├── grpc/                # gRPC обработчики
+    │       └── websocket/           # WebSocket сервер
+    ├── pkg/
+    │   └── api/                     # Protobuf сгенерированный код
+    └── Dockerfile
+    Технологический стек
+    Язык: Go 1.25+
+
+    API: gRPC + Protocol Buffers
+
+    Real-time: WebSocket (Gorilla)
+
+    Хранилище: Redis для комнат
+
+    Контейнеризация: Docker Compose
+
+    HTTP роутинг: Gorilla Mux
+
+        Быстрый старт
+        1. Запуск через Docker Compose
+        bash
+        # Клонирование репозитория
+        git clone <repository-url>
+        cd room-service
+
+        # Запуск всех сервисов
+        docker-compose up -d
+        Сервисы будут доступны по адресам:
+
+        gRPC API: localhost:8083
+
+        WebSocket: ws://localhost:8099/ws
+
+        HTTP/Web UI: http://localhost:8099
+
+        2. Проверка работы
+        bash
+        # Проверка контейнеров
+        docker ps
+
+        # Логи room-service
+        docker logs room-service
+
+        # Health check
+        curl http://localhost:8099/health
+        3. Ручная установка
+        bash
+        # Установка зависимостей
+        go mod download
+
+        # Запуск Redis
+        docker run -p 6379:6379 redis:7-alpine
+
+        # Запуск сервиса
+            go run cmd/room-service/main.go
+     API Reference
+        Два типа интерфейсов:
+        1. gRPC API (порт 8083)
+        Для программного взаимодействия и управления комнатами.
+
+        2. WebSocket (порт 8099)
+        Для real-time событий между клиентами.
+
+        gRPC API
+        Protocol Buffers спецификация
+        protobuf
+        service RoomService {
+        rpc CreateRoom(CreateRoomRequest) returns (RoomResponse);
+        rpc JoinRoom(JoinRoomRequest) returns (RoomResponse);
+        rpc SetPlayback(SetPlaybackRequest) returns (RoomResponse);
+        rpc GetState(GetStateRequest) returns (RoomResponse);
+        }
+    Методы API
+        1. Создание комнаты
+        Метод: CreateRoom
+
+        Запрос:
+
+        protobuf
+        message CreateRoomRequest {
+        string host_id = 1;    // ID создателя комнаты
+        string track_url = 2;  // URL трека для прослушивания
+        }
+        Ответ:
+
+        json
+        {
+        "room_id": "ABC123",
+        "host_id": "user-123",
+        "track_url": "https://example.com/track.mp3",
+        "timestamp": 1705314600,
+        "status": "pause",
+        "users": ["user-123"]
+        }
+        Описание: Создает новую комнату для совместного прослушивания. Возвращает уникальный ID комнаты (6 символов).
+
+        2. Присоединение к комнате
+        Метод: JoinRoom
+
+        Запрос:
+
+        protobuf
+        message JoinRoomRequest {
+        string room_id = 1;  // ID комнаты
+        string user_id = 2;  // ID пользователя
+        }
+        Ответ: Обновленный объект комнаты с добавленным пользователем.
+
+        Ошибки:
+
+        NOT_FOUND: комната не существует
+
+        ALREADY_EXISTS: пользователь уже в комнате
+
+        3. Управление воспроизведением
+        Метод: SetPlayback
+
+    Запрос:
+
+    protobuf
+    message SetPlaybackRequest {
+    string room_id = 1;
+    string action = 2;     // "play" | "pause" | "seek"
+    int64 timestamp = 3;   // Таймкод (для seek)
+    }
+    Примеры:
+
+    json
+    // Пауза
+    {"room_id": "ABC123", "action": "pause", "timestamp": 0}
+
+    // Воспроизведение
+    {"room_id": "ABC123", "action": "play", "timestamp": 1705314600}
+
+    // Перемотка
+    {"room_id": "ABC123", "action": "seek", "timestamp": 120} // 2 минуты
+    4. Получение состояния
+    Метод: GetState
+
+    Запрос:
+
+    protobuf
+    message GetStateRequest {
+    string room_id = 1;
+    }
+    Использование: Получение текущего состояния комнаты (список пользователей, статус воспроизведения и т.д.)
+
+     WebSocket API
+        Подключение
+        text
+        ws://localhost:8099/ws?room_id=ABC123&user_id=user-123&user_name=John
+        Параметры подключения:
+
+        room_id (обязательный) - ID комнаты
+
+        user_id (обязательный) - ID пользователя
+
+        user_name (опциональный) - Отображаемое имя
+
+        Формат сообщений
+        Сервер → Клиент:
+
+        room_info - информация о комнате при подключении
+
+        json
+        {
+        "type": "room_info",
+        "room_id": "ABC123",
+        "users": [
+            {
+            "id": "user-123",
+            "name": "John",
+            "is_host": true,
+            "joined_at": 1705314600
+            }
+        ],
+        "timestamp": 1705314600
+        }
+        user_joined - новый пользователь присоединился
+
+        json
+        {
+        "type": "user_joined",
+        "room_id": "ABC123",
+        "user_id": "user-456",
+        "user_name": "Jane",
+        "user": {
+            "id": "user-456",
+            "name": "Jane",
+            "is_host": false,
+            "joined_at": 1705314700
+        },
+        "timestamp": 1705314700
+        }
+        user_left - пользователь покинул комнату
+
+        json
+        {
+        "type": "user_left",
+        "room_id": "ABC123",
+        "user_id": "user-456",
+        "user_name": "Jane",
+        "timestamp": 1705314800
+        }
+        play/pause/seek - события управления воспроизведением
+
+        json
+        {
+        "type": "play",
+        "room_id": "ABC123",
+        "user_id": "user-123",
+        "user_name": "John",
+        "position": 45.5,
+        "timestamp": 1705314900
+        }
+        Клиент → Сервер:
+
+        control - управление воспроизведением
+
+        json
+        {
+        "type": "control",
+        "action": "play", // или "pause", "seek"
+        "position": 60.0, // только для seek
+        "timestamp": 1705314900
+        }
+    Структура данных
+        Хранение в Redis
+            go
+            // Ключ: room:{room_id}
+            // Значение: JSON RoomResponse
+            {
+            "room_id": "ABC123",
+            "host_id": "user-123",
+            "track_url": "https://example.com/track.mp3",
+            "timestamp": 1705314600,
+            "status": "pause",
+            "users": ["user-123", "user-456"]
+            }
+            Модель комнаты
+                go
+                type Room struct {
+                    ID        string   // Уникальный ID комнаты (6 символов)
+                    HostID    string   // ID создателя
+                    TrackURL  string   // Ссылка на аудио
+                    Timestamp int64    // Текущий таймкод
+                    Status    string   // "play" | "pause"
+                    Users     []string // Список ID пользователей
+                }
+    Конфигурация
+        Переменные окружения
+        Переменная	Описание	Значение по умолчанию
+        REDIS_ADDR	Адрес Redis сервера	redis:6379
+        GRPC_PORT	Порт gRPC сервера	8083
+        HTTP_PORT	Порт HTTP/WebSocket	8099
+        MAX_ROOM_USERS	Макс. пользователей в комнате	50
+        ROOM_ID_LENGTH	Длина ID комнаты	6
+        ROOM_TTL_HOURS	Время жизни комнаты (часы)	24
+        Конфигурация Docker Compose
+        yaml
+        services:
+        room-service:
+            build: .
+            ports:
+            - "8083:8083"  # gRPC
+            - "8099:8099"  # HTTP/WebSocket
+            environment:
+            REDIS_ADDR: "redis:6379"
+            GRPC_PORT: "8083"
+            HTTP_PORT: "8099"
+            depends_on:
+            - redis
+
+        redis:
+            image: redis:7-alpine
+            ports:
+            - "6379:6379"
+        Разработка
+        Генерация gRPC кода
+        bash
+        # Установите protoc
+        go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+        go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+        # Генерация из .proto файла
+        protoc --go_out=. --go-grpc_out=. proto/room.proto
+        Локальная разработка
+        bash
+        # Запуск Redis
+        docker run -d -p 6379:6379 redis:7-alpine --name room-redis
+
+        # Запуск в режиме разработки
+        go run cmd/room-service/main.go
+
+        # Запуск тестов
+        go test ./...
+
+        # Проверка gRPC API
+        grpcurl -plaintext localhost:8083 list

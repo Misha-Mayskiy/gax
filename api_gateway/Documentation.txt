@@ -1,0 +1,327 @@
+Документация API Gateway
+    Общая информация
+    API Gateway - единая точка входа для микросервисов GAX (Go Audio eXperience). Сервис предоставляет REST API, который перенаправляет запросы к соответствующим микросервисам.
+    Базовый URL: http://localhost:8080
+    
+        Аутентификация
+    Большинство запросов требуют JWT токен, который передается в куках:
+
+    Cookie: jwtToken=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+    Основные endpoints
+
+        GET /health
+
+        Проверка состояния сервиса.
+
+        Пример запроса:
+
+        bash
+        curl -X GET "http://localhost:8080/health"
+        Пример ответа:
+
+        json
+        {
+        "status": "ok",
+        "service": "api-gateway",
+        "timestamp": 1700000000,
+        "version": "v1"
+        }
+
+         User Service
+            1. Создание пользователя
+            PUT /user/create
+
+            Тело запроса:
+
+            json
+            {
+            "uuid": "user-123",
+            "email": "user@example.com",
+            "user_name": "John Doe",
+            "avatar": "https://example.com/avatar.jpg",
+            "about_me": "Программист, любитель музыки",
+            "friends": ["user-456", "user-789"]
+            }
+            Пример:
+
+            bash
+            curl -X PUT "http://localhost:8080/user/create" \
+            -H "Content-Type: application/json" \
+            -d '{
+                "uuid": "user-123",
+                "email": "user@example.com",
+                "user_name": "John Doe"
+            }'
+            2. Обновление пользователя
+            PATCH /user/update
+
+            Тело запроса:
+
+            json
+            {
+            "uuid": "user-123",
+            "user_name": "John Updated",
+            "about_me": "Обновленная информация"
+            }
+            3. Удаление пользователя
+            DELETE /user/delete
+
+            Тело запроса:
+
+            json
+            {
+            "uuid": "user-123"
+            }
+            4. Получение информации о пользователе
+            GET /user/get?uuid=user-123
+
+            Пример:
+
+            bash
+            curl -X GET "http://localhost:8080/user/get?uuid=user-123" \
+            -H "Cookie: jwtToken=eyJ..."
+            5. Установка онлайн-статуса
+            POST /user/set_online
+
+            Тело запроса:
+
+            json
+            {
+            "uuid": "user-123",
+            "ttl_seconds": 300
+            }
+            6. Проверка онлайн-статуса
+            GET /user/is_online?uuid=user-123
+
+            7. Список онлайн-пользователей
+            GET /user/get_online_users
+
+         Chat Service
+            1. Создание директ-чата
+            POST /chat/create-direct
+
+            Тело запроса:
+
+            json
+            {
+            "user_id_1": "user-123",
+            "user_id_2": "user-456"
+            }
+            2. Создание группового чата
+            POST /chat/create-group
+
+            Тело запроса:
+
+            json
+            {
+            "creator_id": "user-123",
+            "name": "Музыкальный чат",
+            "participants": ["user-123", "user-456", "user-789"]
+            }
+            3. Получение информации о чате
+            GET /chat/get?chat_id=chat-123
+
+            4. Список чатов пользователя
+            GET /chat/list?user_id=user-123&limit=20&offset=0
+
+            💌 Message Service
+            1. Отправка сообщения
+            POST /chat/message/send
+
+            Тело запроса:
+
+            json
+            {
+            "chat_id": "chat-123",
+            "sender_id": "user-123",
+            "content": "Привет! Как дела?",
+            "content_type": "text"
+            }
+            2. Список сообщений в чате
+            GET /chat/messages/list?chat_id=chat-123&limit=50&offset=0
+
+            3. Обновление сообщения
+            PATCH /chat/message/update
+
+            Тело запроса:
+
+            json
+            {
+            "message_id": "msg-123",
+            "content": "Исправленный текст"
+            }
+            4. Удаление сообщения
+            DELETE /chat/message/delete
+
+            Тело запроса:
+
+            json
+            {
+            "message_id": "msg-123",
+            "delete_type": "soft"
+            }
+            5. Отметка как прочитанного
+            POST /chat/message/mark-read
+
+            Тело запроса:
+
+            json
+            {
+            "message_id": "msg-123",
+            "user_id": "user-456"
+            }
+            6. Сохранение в избранное
+            POST /chat/message/toggle-saved
+
+            Тело запроса:
+
+            json
+            {
+            "message_id": "msg-123",
+            "user_id": "user-456"
+            }
+        Room Service
+            1. Создание комнаты
+            POST /room/create
+
+            Тело запроса:
+
+            json
+            {
+            "creator_id": "user-123",
+            "name": "Музыкальная комната",
+            "video_url": "https://youtube.com/watch?v=abc123",
+            "is_public": true
+            }
+            2. Присоединение к комнате
+            POST /room/join
+
+            Тело запроса:
+
+            json
+            {
+            "room_id": "room-123",
+            "user_id": "user-456"
+            }
+            3. Управление воспроизведением
+            POST /room/playback
+
+            Тело запроса:
+
+            json
+            {
+            "room_id": "room-123",
+            "action": "play",
+            "timestamp": 1234567890
+            }
+            Доступные действия:
+
+            play - воспроизведение
+
+            pause - пауза
+
+            seek - перемотка
+
+            stop - остановка
+
+            4. Получение состояния комнаты
+            GET /room/state?room_id=room-123
+
+        WebSocket для комнат
+            WebSocket Endpoint: ws://localhost:8080/room/ws/{room_id}
+
+            Пример подключения:
+
+            javascript
+            const socket = new WebSocket("ws://localhost:8080/room/ws/room-123");
+            Сообщения (JSON):
+
+            Присоединение:
+
+            json
+            {
+            "type": "join",
+            "user_id": "user-123",
+            "username": "John"
+            }
+            Управление воспроизведением:
+
+            json
+            {
+            "type": "playback",
+            "action": "play",
+            "position": 120.5,
+            "volume": 0.8,
+            "timestamp": 1234567890
+            }
+            Сообщение в чат:
+
+            json
+            {
+            "type": "chat",
+            "user_id": "user-123",
+            "message": "Привет всем!"
+            }
+        
+        Search Service
+            GET /search?q=музыка&type=video&limit=10&offset=0&highlight=true
+
+            Параметры:
+
+            q - поисковый запрос
+
+            type - тип контента (video, music, user, etc.)
+
+            limit - количество результатов (по умолчанию 10)
+
+            offset - смещение для пагинации
+
+            highlight - подсветка совпадений (true/false)
+
+            Пример:
+
+            bash
+            curl -X GET "http://localhost:8080/search?q=rock%20music&type=video&limit=5" \
+            -H "Cookie: jwtToken=eyJ..."
+        
+        Media Service
+            1. Загрузка файла
+            POST /media/upload
+
+            Form Data:
+
+            file: файл для загрузки
+
+            user_id: ID пользователя
+
+            chat_id: ID чата (опционально)
+
+            Пример:
+
+            bash
+            curl -X POST "http://localhost:8080/media/upload" \
+            -H "Cookie: jwtToken=eyJ..." \
+            -F "file=@/path/to/file.mp3" \
+            -F "user_id=user-123" \
+            -F "chat_id=chat-456"
+            2. Скачивание файла
+            GET /media/download?file_id=file-123
+
+            3. Получение метаданных
+            GET /media/meta?file_id=file-123
+
+            4. Удаление файла
+            DELETE /media/delete?file_id=file-123&user_id=user-123
+
+            5. Список файлов пользователя
+            GET /media/list?user_id=user-123&limit=20&offset=0
+
+    Коды ответов
+        Код	Описание
+        200	Успешный запрос
+        201	Создано успешно
+        400	Неверный запрос
+        401	Не авторизован
+        403	Доступ запрещен
+        404	Не найдено
+        500	Внутренняя ошибка сервера

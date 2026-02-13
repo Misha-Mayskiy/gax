@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package user;
+option go_package = "./user"; // путь для сгенерированного Go кода
+
+// Сервис для управления пользователями
+service UserService {
+  // Создание нового пользователя (читаем из Kafka, сохраняем в БД)
+  rpc CreateUser(CreateUserRequest) returns (UserResponse);
+  
+  // Обновление данных пользователя (обновляем в БД)
+  rpc UpdateUser(UpdateUserRequest) returns (UserResponse);
+  
+  // Удаление аккаунта пользователя
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+
+  // Получение информациии о пользователе через uuid
+  rpc AboutMeUser(AboutMeRequest) returns (UserResponse);
+}
+
+// Запрос на создание пользователя
+message CreateUserRequest {
+  string email = 1;        // Email пользователя (обязательное поле)
+  string user_name = 2;    // Имя пользователя
+  string avatar = 3;       // URL аватара (опционально)
+  string about_me = 4;     // Информация о пользователе (опционально)
+  repeated string friends = 5; // Список друзей (UUID других пользователей)
+}
+
+// Запрос на обновление пользователя
+message UpdateUserRequest {
+  string uuid = 1;         // UUID пользователя для идентификации
+  string email = 2;        // Новый email (опционально)
+  string user_name = 3;    // Новое имя пользователя (опционально)
+  string avatar = 4;       // Новый аватар (опционально)
+  string about_me = 5;     // Новая информация о себе (опционально)
+  repeated string friends = 6; // Обновленный список друзей
+}
+
+// Запрос на удаление пользователя
+message DeleteUserRequest {
+  string uuid = 1; // UUID пользователя для удаления
+}
+
+// Зарос на получение инвормации о пользователе
+message AboutMeRequest {
+  string uuid = 1; // UUID пользователя
+}
+
+// Ответ при удалении
+message DeleteUserResponse {
+  bool success = 1;    // Успешно ли удален
+  string message = 2;  // Сообщение о результате
+}
+
+// Ответ с данными пользователя (используется для Create,Update и AboutMe)
+message UserResponse {
+  string uuid = 1;         // Уникальный идентификатор
+  string email = 2;        // Email
+  string user_name = 3;    // Имя пользователя
+  string avatar = 4;       // Аватар
+  string about_me = 5;     // Информация о себе
+  repeated string friends = 6; // Список друзей
+  string created_at = 7;   // Дата создания
+  string updated_at = 8;   // Дата обновления
+}

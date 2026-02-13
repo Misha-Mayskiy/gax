@@ -1,0 +1,176 @@
+syntax = "proto3";
+
+package chat;
+option go_package = "./chat"; // путь для генерации Go-кода
+
+// --- Сервис управления чатами и сообщениями ---
+service ChatService {
+  rpc CreateDirectChat (CreateDirectChatRequest) returns (ChatResponse);
+  rpc CreateGroupChat (CreateGroupChatRequest) returns (ChatResponse);
+  rpc UpdateGroupChat (UpdateGroupChatRequest) returns (ChatResponse);
+  rpc GetChat (GetChatRequest) returns (ChatResponse);
+  rpc ListChats (ListChatsRequest) returns (ListChatsResponse);
+
+  rpc SendMessage (SendMessageRequest) returns (MessageResponse);
+  rpc UpdateMessage (UpdateMessageRequest) returns (MessageResponse);
+
+  rpc DeleteMessage (DeleteMessageRequest) returns (DeleteMessageResponse);
+
+  rpc ListMessages (ListMessagesRequest) returns (ListMessagesResponse);
+  rpc MarkRead (MarkReadRequest) returns (MarkReadResponse);
+  rpc ToggleSaved (ToggleSavedRequest) returns (ToggleSavedResponse);
+  rpc ListSaved (ListSavedRequest) returns (ListSavedResponse);
+  rpc ListReadMessages (ListReadMessagesRequest) returns (ListReadMessagesResponse);
+}
+
+// --- Запросы ---
+message CreateDirectChatRequest {
+  string user_id = 1;
+  string peer_id = 2;
+}
+
+message CreateGroupChatRequest {
+  string user_id = 1;
+  repeated string member_ids = 2;
+  string title = 3;
+}
+
+message UpdateGroupChatRequest {
+  string chat_id = 1;
+  string title = 2;
+  repeated string add_member_ids = 3;
+  repeated string remove_member_ids = 4;
+  string requester_id = 5;
+}
+
+message GetChatRequest {
+  string chat_id = 1;
+}
+
+message ListChatsRequest {
+  string user_id = 1;
+  int32 limit = 2;
+  string cursor = 3;
+}
+
+message SendMessageRequest {
+  string chat_id = 1;
+  string author_id = 2;
+  string text = 3;
+  repeated Media media = 4;
+}
+
+message UpdateMessageRequest {
+  string message_id = 1;
+  string author_id = 2;
+  string text = 3;
+  repeated Media media = 4;
+}
+
+// изменено: теперь repeated string message_ids
+message DeleteMessageRequest {
+  repeated string message_ids = 1; // список ID сообщений
+  string requester_id = 2;
+  bool hard_delete = 3;
+}
+
+message ListMessagesRequest {
+  string chat_id = 1;
+  int32 limit = 2;
+  string cursor = 3;
+}
+
+message MarkReadRequest {
+  string chat_id = 1;
+  string user_id = 2;
+  string message_id = 3;
+}
+
+message ToggleSavedRequest {
+  string user_id = 1;
+  string message_id = 2;
+  bool saved = 3;
+}
+
+message ListSavedRequest {
+  string user_id = 1;
+  int32 limit = 2;
+  string cursor = 3;
+}
+
+message ListReadMessagesRequest {
+  string user_id = 1;
+  string chat_id = 2;
+  int32 limit = 3;
+}
+
+// --- Ответы ---
+message ChatResponse {
+  Chat chat = 1;
+}
+
+message ListChatsResponse {
+  repeated Chat chats = 1;
+  string next_cursor = 2;
+}
+
+message MessageResponse {
+  Message message = 1;
+}
+
+message DeleteMessageResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+message ListMessagesResponse {
+  repeated Message messages = 1;
+  string next_cursor = 2;
+}
+
+message MarkReadResponse {
+  bool success = 1;
+}
+
+message ToggleSavedResponse {
+  bool success = 1;
+}
+
+message ListSavedResponse {
+  repeated Message messages = 1;
+  string next_cursor = 2;
+}
+
+message ListReadMessagesResponse {
+  repeated Message messages = 1;
+}
+
+// --- Сущности ---
+message Chat {
+  string id = 1;
+  string kind = 2;
+  repeated string member_ids = 3;
+  string title = 4;
+  string created_by = 5;
+  string created_at = 6;
+}
+
+message Message {
+  string id = 1;
+  string chat_id = 2;
+  string author_id = 3;
+  string text = 4;
+  repeated Media media = 5;
+  string created_at = 6;
+  string updated_at = 7;
+  bool deleted = 8;
+}
+
+message Media {
+  string id = 1;
+  string type = 2;
+  string url = 3;
+  string mime = 4;
+  int64 size_bytes = 5;
+}
+

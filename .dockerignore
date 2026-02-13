@@ -1,0 +1,11 @@
+.git
+.idea
+.vscode
+*/node_modules
+*/bin
+*/dist
+*.log
+*.exe
+*.test
+docker-compose.yml
+Documentation.txt

@@ -1,0 +1,36 @@
+# --- Binaries & Build artifacts ---
+/bin/
+*/bin/
+*.exe
+*.test
+*.out
+*.log
+main
+server
+client
+
+# --- OS & IDE ---
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# --- Dependency directories ---
+vendor/
+node_modules/
+
+# --- Environment & Configs ---
+.env
+*.env
+config.env
+# Оставляем примеры конфигов, если есть
+!*.example.env
+
+# --- Docker ---
+docker-compose.override.yml
+
+# --- Data volumes (если вдруг создадутся локально) ---
+minio_data/
+postgres_data/
+mongo_data/
+esdata/

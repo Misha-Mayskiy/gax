@@ -1,0 +1,196 @@
+image: golang:1.25-alpine
+
+variables:
+  GOPATH: $CI_PROJECT_DIR/.go
+  CGO_ENABLED: 0
+
+cache:
+  paths:
+    - .go/pkg/mod/
+
+stages:
+  - test
+  - build
+  - deploy
+
+before_script:
+  - apk add --no-cache make git bc grep openssh-client
+
+# ШАБЛОН ДЛЯ ТЕСТОВ
+.test_template: &test_definition
+  stage: test
+  script:
+    - cd $SERVICE_DIR
+    - echo "🔍 Тестирование $SERVICE_DIR с проверкой покрытия..."
+    - go mod download
+
+    # 1. Запуск тестов. Если упадут, пайплайн остановится.
+    - go test -v -coverprofile=coverage.raw ./...
+
+    # 2. Фильтрация
+    - grep -vE "cmd/|client/|pkg/db|pkg/api|mock|test" coverage.raw > coverage.out
+
+    # 3. Подсчет процента
+    - COVERAGE=$(go tool cover -func=coverage.out 2>/dev/null | grep total | awk '{print $3}' | tr -d '%' || echo "0.0")
+    - echo "📊 Покрытие для $SERVICE_DIR - $COVERAGE%"
+
+    # 4. Блокировка пайплайна, если покрытие ниже 30%
+    - |
+      if [ $(echo "$COVERAGE < 30.0" | bc) -eq 1 ]; then
+        echo "❌ FAILURE: Покрытие кода тестами ($COVERAGE%) ниже порога 30%."
+        exit 1
+      else
+        echo "✅ Проверка покрытия пройдена."
+      fi
+
+# ШАБЛОН ДЛЯ СБОРКИ
+.build_template: &build_definition
+  stage: build
+  script:
+    - cd $SERVICE_DIR
+    - echo "🔨 Сборка $SERVICE_DIR..."
+    - go mod download
+    - |
+      if [ -f "$MAIN_PATH" ]; then
+        echo "✅ Found main file at $MAIN_PATH"
+        go build -p 1 -o ../bin/$SERVICE_NAME $MAIN_PATH
+      else
+        echo "❌ Error: main.go NOT found at $MAIN_PATH"
+        ls -R
+        exit 1
+      fi
+    - ls -lh ../bin/$SERVICE_NAME
+  artifacts:
+    paths:
+      - bin/
+    expire_in: 1 week
+
+# JOBS (СЕРВИСЫ)
+
+# --- User Service ---
+test:user-service:
+  variables: { SERVICE_DIR: "user-service" }
+  <<: *test_definition
+
+build:user-service:
+  variables:
+    SERVICE_DIR: "user-service"
+    SERVICE_NAME: "user-service"
+    MAIN_PATH: "./cmd/app/main.go"
+  <<: *build_definition
+
+# --- Auth Service ---
+test:auth-service:
+  variables: { SERVICE_DIR: "auth-service" }
+  <<: *test_definition
+
+build:auth-service:
+  variables:
+    SERVICE_DIR: "auth-service"
+    SERVICE_NAME: "auth-service"
+    MAIN_PATH: "./cmd/server/main.go"
+  <<: *build_definition
+
+# --- Chat Service ---
+test:chat-service:
+  variables: { SERVICE_DIR: "chat-service" }
+  <<: *test_definition
+
+build:chat-service:
+  variables:
+    SERVICE_DIR: "chat-service"
+    SERVICE_NAME: "chat-service"
+    MAIN_PATH: "./cmd/app/main.go"
+  <<: *build_definition
+
+# --- Media Service ---
+test:media-service:
+  variables: { SERVICE_DIR: "media-service" }
+  <<: *test_definition
+
+build:media-service:
+  variables:
+    SERVICE_DIR: "media-service"
+    SERVICE_NAME: "media-service"
+    MAIN_PATH: "./cmd/main.go"
+  <<: *build_definition
+
+# --- Search Service ---
+test:search-service:
+  variables: { SERVICE_DIR: "search-service" }
+  <<: *test_definition
+
+build:search-service:
+  variables:
+    SERVICE_DIR: "search-service"
+    SERVICE_NAME: "search-service"
+    MAIN_PATH: "./cmd/search-service/main.go"
+  <<: *build_definition
+
+# --- Room Service ---
+test:room-service:
+  variables: { SERVICE_DIR: "room-service" }
+  <<: *test_definition
+
+build:room-service:
+  variables:
+    SERVICE_DIR: "room-service"
+    SERVICE_NAME: "room-service"
+    MAIN_PATH: "./cmd/room-service/main.go"
+  <<: *build_definition
+
+# --- Call Service ---
+test:call-service:
+  variables: { SERVICE_DIR: "call-service" }
+  <<: *test_definition
+
+build:call-service:
+  variables:
+    SERVICE_DIR: "call-service"
+    SERVICE_NAME: "call-service"
+    MAIN_PATH: "./cmd/main.go"
+  <<: *build_definition
+
+# --- API Gateway (Только успешность тестов) ---
+test:api-gateway:
+  stage: test
+  variables:
+    SERVICE_DIR: "api_gateway"
+  script:
+    - cd $SERVICE_DIR
+    - echo "🔍 Тестирование $SERVICE_DIR (без Quality Gate по покрытию)..."
+    - go mod download
+    # Флаг покрытия полезен для логов (-cover)
+    - go test -v -cover ./...
+
+build:api-gateway:
+  stage: build
+  variables:
+    SERVICE_DIR: "api_gateway"
+    SERVICE_NAME: "api-gateway"
+    MAIN_PATH: "./cmd/app/main.go"
+  script:
+    - cd $SERVICE_DIR
+    - echo "🔨 Сборка $SERVICE_DIR..."
+    - go mod download
+    - go build -p 1 -o ../bin/$SERVICE_NAME $MAIN_PATH
+  artifacts:
+    paths:
+      - bin/
+
+# DEPLOY STAGE
+deploy:production:
+  stage: deploy
+  image: alpine:latest
+  before_script:
+    - apk add --no-cache openssh-client
+    - eval $(ssh-agent -s)
+    - echo "$SSH_PRIVATE_KEY" | tr -d '\r' | ssh-add -
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - ssh-keyscan -H $SERVER_IP >> ~/.ssh/known_hosts
+  script:
+    - echo "🚀 Deploying to production server..."
+    - ssh root@$SERVER_IP "set -e && cd /root/gax && git pull origin main && chmod +x deploy.sh && ./deploy.sh"
+  only:
+    - main

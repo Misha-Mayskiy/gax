@@ -1,0 +1,29 @@
+{
+	"folders": [
+		{
+			"path": "../.."
+		},
+		{
+			"path": "../../../testGAX/userServices/api"
+		},
+		{
+			"path": "../../../testGAX/userServices/client"
+		},
+		{
+			"path": "../../../testGAX/userServices/cmd"
+		},
+		{
+			"path": "../../../testGAX/userServices/init.sql"
+		},
+		{
+			"path": "../../../testGAX/userServices/internal"
+		},
+		{
+			"path": "../../../testGAX/userServices/migrations"
+		},
+		{
+			"path": "../../../testGAX/userServices/pkg"
+		}
+	],
+	"settings": {}
+}

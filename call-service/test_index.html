@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Call Service Debugger</title>
+    <style>
+        body { background-color: #121212; color: #e0e0e0; font-family: monospace; display: flex; flex-direction: column; height: 100vh; margin: 0; }
+        
+        /* Верхняя панель */
+        .header { background: #1e1e1e; padding: 15px; display: flex; gap: 10px; align-items: center; border-bottom: 1px solid #333; }
+        input { background: #2c2c2c; border: 1px solid #444; color: white; padding: 8px; border-radius: 4px; }
+        button { background: #4CAF50; color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        button.stop { background: #d32f2f; }
+        
+        /* Сетка видео */
+        #video-grid { flex-grow: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px; padding: 10px; overflow-y: auto; }
+        
+        /* Видео элемент */
+        .video-wrapper { position: relative; background: #000; border-radius: 8px; overflow: hidden; aspect-ratio: 16/9; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        .local-video { border: 2px solid #4CAF50; transform: scaleX(-1); } /* Зеркалим себя */
+        .label { position: absolute; bottom: 5px; left: 5px; background: rgba(0,0,0,0.6); padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+
+        /* Логи */
+        #logs { height: 150px; background: #000; overflow-y: scroll; padding: 10px; font-size: 12px; border-top: 1px solid #333; }
+        .log-entry { margin-bottom: 2px; }
+        .log-error { color: #ff5555; }
+        .log-info { color: #4CAF50; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <input type="text" id="roomInput" placeholder="Room ID" value="test-room">
+        <input type="text" id="userInput" placeholder="User ID" value="user1">
+        <button onclick="startCall()">Connect</button>
+        <button class="stop" onclick="location.reload()">Disconnect</button>
+        <button onclick="toggleScreen()" id="screenBtn">🖥️ Screen</button>
+    </div>
+
+    <div id="video-grid"></div>
+    <div id="logs"></div>
+
+    <script>
+        // --- КОНФИГУРАЦИЯ ---
+        // Автоматически определяем протокол (wss если https, ws если http)
+        const PROTOCOL = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        // Если открыто локально, стучимся на 8086. Если на домене - на стандартный порт (Nginx прокинет)
+        const PORT = window.location.hostname === 'localhost' || window.location.hostname.match(/\d+\.\d+\.\d+\.\d+/) ? ':8086' : ''; 
+        const BASE_URL = `${PROTOCOL}://${window.location.hostname}${PORT}/ws`;
+
+        let ws = null;
+        let pc = null;
+        let localStream = null;
+        let screenSender = null;
+        
+        // Очереди для Race Conditions
+        let isRemoteDescriptionSet = false;
+        let candidateQueue = [];
+
+        function log(msg, type = '') {
+            const div = document.getElementById('logs');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            div.appendChild(entry);
+            div.scrollTop = div.scrollHeight;
+            console.log(msg);
+        }
+
+        async function startCall() {
+            const roomID = document.getElementById('roomInput').value;
+            const userID = document.getElementById('userInput').value;
+            
+            try {
+                // 1. Получаем медиа (СНАЧАЛА!)
+                log("Requesting camera/mic...");
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                
+                // Отображаем себя
+                addVideo(localStream, "Me (Local)", true);
+
+                // 2. Создаем PC
+                pc = new RTCPeerConnection({
+                    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+                });
+
+                // Добавляем треки
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+                // Обработка входящих треков
+                pc.ontrack = (event) => {
+                    log(`Track received: ${event.track.kind} (${event.streams[0].id})`, 'info');
+                    const stream = event.streams[0];
+                    
+                    // Если видео уже есть, не создаем дубль (проверка внутри addVideo)
+                    addVideo(stream, `Remote (${event.track.kind})`, false);
+                    
+                    event.track.onmute = () => log(`Track muted: ${event.track.kind}`);
+                    event.track.onunmute = () => log(`Track unmuted: ${event.track.kind}`);
+                };
+
+                // Отправка кандидатов
+                pc.onicecandidate = (event) => {
+                    if (event.candidate && ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: "candidate", payload: event.candidate }));
+                    }
+                };
+
+                pc.onconnectionstatechange = () => log(`PC State: ${pc.connectionState}`, 'info');
+
+                // 3. Подключаемся к WS
+                log(`Connecting to ${BASE_URL}...`);
+                ws = new WebSocket(BASE_URL);
+
+                ws.onopen = () => {
+                    log("WebSocket Connected!", 'info');
+                    // Эмулируем заголовок X-User-ID через payload (так как это тест без Gateway)
+                    // В реальном коде Gateway вырезает это и ставит Header
+                    ws.send(JSON.stringify({
+                        type: "join",
+                        payload: { room_id: roomID, user_id: userID } // user_id тут как fallback для теста
+                    }));
+                };
+
+                ws.onclose = () => log("WebSocket Disconnected", 'error');
+                ws.onerror = (e) => log("WebSocket Error", 'error');
+
+                ws.onmessage = async (event) => {
+                    const msg = JSON.parse(event.data);
+                    
+                    if (msg.type === "offer") {
+                        log("Received Offer from Server");
+                        try {
+                            await pc.setRemoteDescription(msg.payload);
+                            isRemoteDescriptionSet = true;
+                            
+                            // Применяем очередь кандидатов
+                            while(candidateQueue.length) {
+                                await pc.addIceCandidate(candidateQueue.shift());
+                            }
+
+                            const answer = await pc.createAnswer();
+                            await pc.setLocalDescription(answer);
+                            ws.send(JSON.stringify({ type: "answer", payload: answer }));
+                            log("Sent Answer");
+                        } catch(e) { log("Offer Error: " + e, 'error'); }
+                    }
+                    else if (msg.type === "answer") {
+                        log("Received Answer from Server"); // Редко, так как сервер обычно шлет Offer
+                        await pc.setRemoteDescription(msg.payload);
+                    }
+                    else if (msg.type === "candidate") {
+                        if (isRemoteDescriptionSet) {
+                            pc.addIceCandidate(msg.payload).catch(e => log("ICE Error: " + e, 'error'));
+                        } else {
+                            candidateQueue.push(msg.payload);
+                        }
+                    }
+                    else if (msg.type === "user_left") {
+                        log(`User left. Cleaning streams: ${msg.payload.stream_ids}`);
+                        msg.payload.stream_ids.forEach(id => removeVideo(id));
+                    }
+                };
+
+            } catch (e) {
+                log("Error: " + e, 'error');
+                alert("Error: " + e.message);
+            }
+        }
+
+        // --- Вспомогательные функции UI ---
+
+        function addVideo(stream, labelText, isLocal) {
+            const grid = document.getElementById('video-grid');
+            const id = stream.id; // Используем ID стрима как ключ
+
+            if (document.getElementById(`wrap-${id}`)) return; // Уже есть
+
+            const wrapper = document.createElement('div');
+            wrapper.className = 'video-wrapper';
+            wrapper.id = `wrap-${id}`;
+
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.autoplay = true;
+            video.playsInline = true;
+            if (isLocal) video.classList.add('local-video');
+            video.muted = isLocal; // Себя не слышим, других слышим
+
+            const label = document.createElement('div');
+            label.className = 'label';
+            label.innerText = labelText;
+
+            wrapper.appendChild(video);
+            wrapper.appendChild(label);
+            grid.appendChild(wrapper);
+        }
+
+        function removeVideo(streamId) {
+            const el = document.getElementById(`wrap-${streamId}`);
+            if (el) el.remove();
+        }
+
+        async function toggleScreen() {
+            const btn = document.getElementById('screenBtn');
+            // Упрощенная логика: только запуск. 
+            // Остановка через обновление страницы (для теста)
+            if (btn.style.background === 'orange') {
+                alert("Reload page to stop sharing (Test mode)");
+                return;
+            }
+
+            try {
+                const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+                const track = screenStream.getVideoTracks()[0];
+                
+                screenSender = pc.addTrack(track, screenStream);
+                addVideo(screenStream, "My Screen", true);
+                
+                // Renegotiation (говорим серверу про новый трек)
+                // Так как мы клиент, а сервер ждет, что он главный,
+                // мы можем послать Offer, если сервер это поддерживает.
+                // В нашем коде (handler.go) мы добавили поддержку входящего Offer!
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                ws.send(JSON.stringify({ type: "offer", payload: offer }));
+                
+                btn.style.background = 'orange';
+            } catch(e) { log("Screen Share Error: " + e, 'error'); }
+        }
+    </script>
+</body>
+</html>

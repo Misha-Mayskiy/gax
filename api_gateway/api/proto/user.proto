@@ -1,0 +1,108 @@
+syntax = "proto3";
+
+package user;
+option go_package = "./user";
+
+service UserService {
+    rpc CreateUser (CreateUserRequest) returns (UserResponse);
+    rpc GetUser (GetUserRequest) returns (UserResponse);
+    rpc UpdateUser (UpdateUserRequest) returns (UserResponse);
+    rpc DeleteUser (DeleteUserRequest) returns (DeleteUserResponse);
+    rpc ListUsers (ListUsersRequest) returns (ListUsersResponse);
+    rpc AboutMeUser (AboutMeRequest) returns (UserResponse);
+    rpc SetOnline (SetOnlineRequest) returns (StatusResponse);
+    rpc SetOffline (SetOfflineRequest) returns (StatusResponse);
+    rpc IsOnline (IsOnlineRequest) returns (IsOnlineResponse);
+    rpc GetOnlineUsers (GetOnlineUsersRequest) returns (GetOnlineUsersResponse);
+}
+
+message CreateUserRequest {
+    string uuid = 1;        // Опционально
+    string email = 2;
+    string user_name = 3;
+    string avatar = 4;      // Опционально
+    string about_me = 5;    // Опционально
+    string status = 6;      // Опционально
+    repeated string friends = 7; // Добавлено поле friends
+}
+
+message GetUserRequest {
+    string uuid = 1;
+}
+
+message UpdateUserRequest {
+    string uuid = 1;        // Обязательно
+    string email = 2;       // Опционально
+    string user_name = 3;   // Опционально
+    string avatar = 4;      // Опционально
+    string about_me = 5;    // Опционально
+    string status = 6;      // Опционально
+    repeated string friends = 7; // Добавлено поле friends
+}
+
+message DeleteUserRequest {
+    string uuid = 1;
+}
+
+message ListUsersRequest {
+    int32 limit = 1;
+    int32 offset = 2;
+}
+
+message AboutMeRequest {
+    string uuid = 1;
+}
+
+message SetOnlineRequest {
+    string uuid = 1;
+    int32 ttl_seconds = 2; // Time to live в секундах
+}
+
+message SetOfflineRequest {
+    string uuid = 1;
+}
+
+message IsOnlineRequest {
+    string uuid = 1;
+}
+
+message GetOnlineUsersRequest {
+    // Пустой запрос - получить всех онлайн пользователей
+}
+
+// Ответы
+message UserResponse {
+    string uuid = 1;
+    string email = 2;
+    string user_name = 3;
+    string avatar = 4;
+    string about_me = 5;
+    string status = 6;
+    string created_at = 7;
+    string updated_at = 8;
+    repeated string friends = 9; // Добавлено поле friends
+}
+
+message DeleteUserResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message ListUsersResponse {
+    repeated UserResponse users = 1;
+    int32 total = 2;
+}
+
+message StatusResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message IsOnlineResponse {
+    string uuid = 1;
+    bool online = 2;
+}
+
+message GetOnlineUsersResponse {
+    repeated string uuids = 1;
+}

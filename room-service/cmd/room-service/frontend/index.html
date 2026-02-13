@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🎵 Music Room - Синхронное прослушивание</title>
+    <style>
+        /* ... CSS стили остаются без изменений ... */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        header {
+            margin-bottom: 40px;
+            padding: 40px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        h1 {
+            font-size: 3.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .subtitle {
+            font-size: 1.3rem;
+            opacity: 0.8;
+            margin-bottom: 30px;
+        }
+        
+        .status {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 1rem;
+            font-weight: bold;
+            margin: 10px;
+        }
+        
+        .status.connected {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+        }
+        
+        .status.disconnected {
+            background: linear-gradient(45deg, #ff4444, #cc0000);
+        }
+        
+        .room-section {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 20px 0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        h2 {
+            margin-bottom: 20px;
+            color: #4ecdc4;
+        }
+        
+        h3 {
+            margin: 15px 0;
+            color: #ff6b6b;
+        }
+        
+        .input-group {
+            display: flex;
+            gap: 15px;
+            margin: 20px 0;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        input, button {
+            padding: 15px 25px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+        
+        input {
+            min-width: 300px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        button {
+            background: linear-gradient(45deg, #4ecdc4, #44a08d);
+            color: white;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        button.danger {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+        }
+        
+        .player-container {
+            margin: 30px 0;
+        }
+        
+        #youtube-player {
+            width: 100%;
+            max-width: 800px;
+            height: 450px;
+            margin: 0 auto;
+            border-radius: 10px;
+        }
+        
+        audio {
+            width: 100%;
+            max-width: 800px;
+            margin: 20px 0;
+        }
+        
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin: 30px 0;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        
+        .control-btn {
+            padding: 15px 30px;
+            font-size: 18px;
+            min-width: 200px;
+        }
+        
+        .users-list {
+            list-style: none;
+            margin: 20px 0;
+        }
+        
+        .user-item {
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            margin: 10px 0;
+            border-radius: 10px;
+            text-align: left;
+            border-left: 4px solid #4ecdc4;
+        }
+        
+        .user-item.host {
+            border-left-color: #ff6b6b;
+        }
+        
+        #messageLog {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: left;
+            font-family: monospace;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        
+        .log-entry {
+            margin: 5px 0;
+            padding: 8px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.05);
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            h1 {
+                font-size: 2.5rem;
+            }
+            
+            input {
+                min-width: 100%;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .control-btn {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🎵 Music Room</h1>
+            <p class="subtitle">Слушайте музыку синхронно с друзьями в реальном времени</p>
+            <div id="connectionStatus" class="status disconnected">Отключено</div>
+        </header>
+
+        <section class="room-section">
+            <h2>🎯 Подключение к комнате</h2>
+            <div class="input-group">
+                <input type="text" id="roomId" placeholder="ID комнаты" value="demo-room">
+                <input type="text" id="userId" placeholder="Ваше имя" value="Гость">
+                <button onclick="connectToRoom()" id="connectBtn">🚀 Подключиться</button>
+            </div>
+        </section>
+
+        <section id="musicSection" class="room-section hidden">
+            <h2>🎵 Выбор музыки</h2>
+            
+            <div class="input-group">
+                <input type="text" id="youtubeUrl" 
+                       placeholder="Вставьте ссылку YouTube (например: https://youtube.com/watch?v=...)"
+                       value="https://www.youtube.com/watch?v=dQw4w9WgXcQ">
+                <button onclick="loadYouTubeVideo()">📥 Загрузить видео</button>
+            </div>
+            
+            <div class="player-container">
+                <div id="youtube-player"></div>
+            </div>
+            
+            <div class="input-group">
+                <h3>Или используйте MP3 файл:</h3>
+                <input type="text" id="mp3Url" 
+                       placeholder="Ссылка на MP3 файл"
+                       value="https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3">
+                <button onclick="loadMP3()">🎵 Загрузить MP3</button>
+            </div>
+            
+            <div class="player-container">
+                <audio id="audioPlayer" controls crossorigin="anonymous">
+                    <source id="mp3SourceElement" src="" type="audio/mpeg">
+                </audio>
+            </div>
+        </section>
+
+        <section id="controlSection" class="room-section hidden">
+            <h2>🎮 Управление</h2>
+            
+            <div class="controls">
+                <button class="control-btn" onclick="sendControl('play')">▶ Воспроизведение</button>
+                <button class="control-btn" onclick="sendControl('pause')">⏸ Пауза</button>
+                <button class="control-btn" onclick="sendControl('seek')">↻ Синхронизировать</button>
+                <button class="control-btn danger" onclick="disconnectFromRoom()">❌ Покинуть комнату</button>
+            </div>
+            
+            <div class="controls">
+                <button onclick="skipBackward()">⏪ Назад 10с</button>
+                <button onclick="skipForward()">⏩ Вперед 10с</button>
+                <button onclick="toggleMute()" id="muteBtn">🔇 Выкл звук</button>
+            </div>
+        </section>
+
+        <section id="usersSection" class="room-section hidden">
+            <h2>👥 Участники</h2>
+            <div class="users-list" id="usersList">
+                <div class="user-item">Загрузка...</div>
+            </div>
+        </section>
+
+        <section class="room-section">
+            <h2>📊 Лог событий</h2>
+            <div id="messageLog">
+                <div class="log-entry">[Система] Добро пожаловать в Music Room!</div>
+                <div class="log-entry">[Система] Для начала подключитесь к комнате</div>
+            </div>
+            <button onclick="clearLogs()">🧹 Очистить логи</button>
+        </section>
+    </div>
+
+    <!-- YouTube IFrame API -->
+    <script src="https://www.youtube.com/iframe_api"></script>
+
+    <script>
+        // Глобальные переменные
+        let ws = null;
+        let currentRoom = null;
+        let currentUser = null;
+        let youtubePlayer = null;
+        let audioPlayer = document.getElementById('audioPlayer');
+        let isSyncing = false;
+        let users = {};
+
+        // ==================== УТИЛИТЫ ====================
+        function log(message, type = 'system') {
+            const logElement = document.getElementById('messageLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `[${timestamp}] ${message}`;
+            logElement.appendChild(entry);
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[${type}] ${message}`);
+        }
+
+        function updateStatus(connected) {
+            const statusElement = document.getElementById('connectionStatus');
+            const connectBtn = document.getElementById('connectBtn');
+            
+            if (connected) {
+                statusElement.textContent = '✅ Подключено';
+                statusElement.className = 'status connected';
+                connectBtn.disabled = true;
+                connectBtn.textContent = '✅ Подключено';
+                document.getElementById('musicSection').classList.remove('hidden');
+                document.getElementById('controlSection').classList.remove('hidden');
+                document.getElementById('usersSection').classList.remove('hidden');
+            } else {
+                statusElement.textContent = '❌ Отключено';
+                statusElement.className = 'status disconnected';
+                connectBtn.disabled = false;
+                connectBtn.textContent = '🚀 Подключиться';
+                document.getElementById('musicSection').classList.add('hidden');
+                document.getElementById('controlSection').classList.add('hidden');
+                document.getElementById('usersSection').classList.add('hidden');
+            }
+        }
+
+        function extractYouTubeId(url) {
+            const regExp = /^.*((youtu.be\/)|(v\/)|(\/u\/\w\/)|(embed\/)|(watch\?))\??v?=?([^#&?]*).*/;
+            const match = url.match(regExp);
+            return (match && match[7].length == 11) ? match[7] : false;
+        }
+
+        function formatTime(seconds) {
+            if (isNaN(seconds)) return '0:00';
+            const mins = Math.floor(seconds / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        // ==================== ВОСПРОИЗВЕДЕНИЕ ====================
+        function onYouTubeIframeAPIReady() {
+            log('YouTube API готов', 'system');
+        }
+
+        function loadYouTubeVideo() {
+            const url = document.getElementById('youtubeUrl').value;
+            const videoId = extractYouTubeId(url);
+            
+            if (!videoId) {
+                alert('Пожалуйста, введите корректную ссылку на YouTube');
+                return;
+            }
+            
+            if (!youtubePlayer) {
+                youtubePlayer = new YT.Player('youtube-player', {
+                    height: '450',
+                    width: '800',
+                    videoId: videoId,
+                    playerVars: {
+                        'playsinline': 1,
+                        'controls': 1,
+                        'rel': 0
+                    },
+                    events: {
+                        'onReady': onYouTubePlayerReady,
+                        'onStateChange': onYouTubePlayerStateChange
+                    }
+                });
+            } else {
+                youtubePlayer.loadVideoById(videoId);
+            }
+            
+            log(`Загружено YouTube видео: ${videoId}`, 'system');
+        }
+
+        function onYouTubePlayerReady(event) {
+            log('YouTube плеер готов к воспроизведению', 'system');
+        }
+
+        function onYouTubePlayerStateChange(event) {
+            if (isSyncing) return;
+            
+            if (event.data === YT.PlayerState.PLAYING) {
+                sendControl('play', event.target.getCurrentTime());
+            } else if (event.data === YT.PlayerState.PAUSED) {
+                sendControl('pause', event.target.getCurrentTime());
+            }
+        }
+
+        function loadMP3() {
+            const url = document.getElementById('mp3Url').value;
+            if (!url) {
+                alert('Пожалуйста, введите URL MP3 файла');
+                return;
+            }
+            
+            const sourceElement = document.getElementById('mp3SourceElement');
+            sourceElement.src = url;
+            audioPlayer.load();
+            
+            audioPlayer.onloadedmetadata = function() {
+                log(`MP3 загружен: ${url}`, 'system');
+            };
+            
+            audioPlayer.onerror = function() {
+                log('Ошибка загрузки MP3 файла', 'error');
+            };
+        }
+
+        audioPlayer.addEventListener('play', function() {
+            if (isSyncing) return;
+            sendControl('play', audioPlayer.currentTime);
+        });
+
+        audioPlayer.addEventListener('pause', function() {
+            if (isSyncing) return;
+            sendControl('pause', audioPlayer.currentTime);
+        });
+
+        audioPlayer.addEventListener('seeked', function() {
+            if (isSyncing) return;
+            sendControl('seek', audioPlayer.currentTime);
+        });
+
+        // ==================== УПРАВЛЕНИЕ ====================
+        function sendControl(action, position = null) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                log('Нет подключения к комнате', 'error');
+                return;
+            }
+            
+            const message = {
+                type: 'control',
+                action: action,
+                roomId: currentRoom,
+                userId: currentUser.id,
+                userName: currentUser.name,
+                timestamp: Date.now()
+            };
+            
+            if (position !== null) {
+                message.position = position;
+            }
+            
+            ws.send(JSON.stringify(message));
+            log(`Отправлено: ${action} ${position ? `(позиция: ${formatTime(position)})` : ''}`, 'outgoing');
+        }
+
+        function skipBackward() {
+            if (youtubePlayer) {
+                const newTime = Math.max(0, youtubePlayer.getCurrentTime() - 10);
+                youtubePlayer.seekTo(newTime, true);
+            }
+            if (audioPlayer.src) {
+                audioPlayer.currentTime = Math.max(0, audioPlayer.currentTime - 10);
+            }
+        }
+
+        function skipForward() {
+            if (youtubePlayer) {
+                const newTime = youtubePlayer.getCurrentTime() + 10;
+                youtubePlayer.seekTo(newTime, true);
+            }
+            if (audioPlayer.src) {
+                audioPlayer.currentTime += 10;
+            }
+        }
+
+        function toggleMute() {
+            const btn = document.getElementById('muteBtn');
+            if (youtubePlayer) {
+                const isMuted = youtubePlayer.isMuted();
+                if (isMuted) {
+                    youtubePlayer.unMute();
+                    btn.textContent = '🔇 Выкл звук';
+                } else {
+                    youtubePlayer.mute();
+                    btn.textContent = '🔈 Вкл звук';
+                }
+            }
+            if (audioPlayer.src) {
+                audioPlayer.muted = !audioPlayer.muted;
+                btn.textContent = audioPlayer.muted ? '🔈 Вкл звук' : '🔇 Выкл звук';
+            }
+        }
+
+        // ==================== ПОЛЬЗОВАТЕЛИ ====================
+        function updateUsersList() {
+            const usersList = document.getElementById('usersList');
+            usersList.innerHTML = '';
+            
+            const userArray = Object.values(users);
+            
+            if (userArray.length === 0) {
+                usersList.innerHTML = '<div class="user-item">В комнате пока никого нет</div>';
+                return;
+            }
+            
+            userArray.forEach(user => {
+                const userElement = document.createElement('div');
+                userElement.className = `user-item ${user.isHost ? 'host' : ''}`;
+                userElement.innerHTML = `
+                    <strong>${user.name}</strong> ${user.isHost ? '👑' : ''}
+                `;
+                usersList.appendChild(userElement);
+            });
+        }
+
+        // ==================== WEB SOCKET ====================
+        function connectToRoom() {
+            const roomId = document.getElementById('roomId').value;
+            const userName = document.getElementById('userId').value;
+            
+            if (!roomId || !userName) {
+                alert('Пожалуйста, введите ID комнаты и ваше имя');
+                return;
+            }
+            
+            // Отключаем кнопку на время подключения
+            const connectBtn = document.getElementById('connectBtn');
+            connectBtn.disabled = true;
+            connectBtn.textContent = 'Подключаемся...';
+            
+            currentRoom = roomId;
+            currentUser = {
+                id: 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                name: userName,
+                isHost: false,
+                joinedAt: Date.now()
+            };
+            
+            const wsUrl = `ws://${window.location.host}/ws?room_id=${encodeURIComponent(roomId)}&user_id=${encodeURIComponent(currentUser.id)}&user_name=${encodeURIComponent(userName)}`;
+            
+            log(`Подключаемся к WebSocket: ${wsUrl}`, 'system');
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = function() {
+                log(`✅ Подключено к комнате "${roomId}" как "${userName}"`, 'system');
+                updateStatus(true);
+                
+                // Отправляем информацию о пользователе
+                const message = {
+                    type: 'user_join',
+                    roomId: roomId,
+                    user: currentUser,
+                    timestamp: Date.now()
+                };
+                ws.send(JSON.stringify(message));
+            };
+            
+            ws.onmessage = function(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (error) {
+                    log(`❌ Ошибка разбора сообщения: ${error.message}`, 'error');
+                    console.error('Ошибка разбора JSON:', event.data);
+                }
+            };
+            
+            ws.onclose = function(event) {
+                log(`📴 Отключено от комнаты. Код: ${event.code}, Причина: ${event.reason || 'нет'}`, 'system');
+                updateStatus(false);
+                currentRoom = null;
+                currentUser = null;
+                users = {};
+                updateUsersList();
+            };
+            
+            ws.onerror = function(error) {
+                log(`❌ Ошибка WebSocket: ${error.type}`, 'error');
+                connectBtn.disabled = false;
+                connectBtn.textContent = '🚀 Подключиться';
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            console.log('📨 Получено сообщение:', data);
+            
+            // Обработка сообщений
+            if (data.type === 'room_info' && Array.isArray(data.users)) {
+                // Обновляем список пользователей
+                users = {};
+                data.users.forEach(user => {
+                    if (user && user.id) {
+                        users[user.id] = user;
+                    }
+                });
+                updateUsersList();
+                log(`👥 В комнате ${data.users.length} участников`, 'system');
+                return;
+            }
+            
+            if (data.type === 'user_joined' && data.user) {
+                // Новый пользователь присоединился
+                users[data.user.id] = data.user;
+                updateUsersList();
+                log(`👤 ${data.user.name} присоединился к комнате`, 'system');
+                return;
+            }
+            
+            if (data.type === 'user_left' && data.user) {
+                // Пользователь покинул комнату
+                delete users[data.user.id];
+                updateUsersList();
+                log(`👤 ${data.user.name} покинул комнату`, 'system');
+                return;
+            }
+            
+            if (data.type === 'play' || data.type === 'pause' || data.type === 'seek') {
+                // Управление воспроизведением
+                handlePlaybackControl(data.type, data.position, data.userName, data.userId);
+                return;
+            }
+            
+            // Для других типов сообщений
+            log(`📨 ${JSON.stringify(data)}`, 'incoming');
+        }
+
+        function handlePlaybackControl(action, position, userName, userId) {
+            if (userId === currentUser.id) {
+                return; // Не обрабатываем собственные команды
+            }
+            
+            log(`🎮 ${userName || 'Кто-то'}: ${action} ${position ? `на ${formatTime(position)}` : ''}`, 'system');
+            
+            isSyncing = true;
+            
+            try {
+                switch(action) {
+                    case 'play':
+                        if (youtubePlayer && youtubePlayer.playVideo) {
+                            if (position !== undefined && position !== null) {
+                                youtubePlayer.seekTo(position, true);
+                            }
+                            youtubePlayer.playVideo();
+                        }
+                        if (audioPlayer.src) {
+                            if (position !== undefined && position !== null) {
+                                audioPlayer.currentTime = position;
+                            }
+                            audioPlayer.play().catch(e => console.error('Ошибка воспроизведения:', e));
+                        }
+                        break;
+                        
+                    case 'pause':
+                        if (youtubePlayer && youtubePlayer.pauseVideo) {
+                            youtubePlayer.pauseVideo();
+                        }
+                        if (audioPlayer.src) {
+                            audioPlayer.pause();
+                        }
+                        break;
+                        
+                    case 'seek':
+                        if (position !== undefined && position !== null) {
+                            if (youtubePlayer && youtubePlayer.seekTo) {
+                                youtubePlayer.seekTo(position, true);
+                            }
+                            if (audioPlayer.src) {
+                                audioPlayer.currentTime = position;
+                            }
+                        }
+                        break;
+                }
+            } catch (error) {
+                console.error('Ошибка обработки команды:', error);
+            }
+            
+            setTimeout(() => { isSyncing = false; }, 100);
+        }
+
+        function disconnectFromRoom() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = {
+                    type: 'user_leave',
+                    roomId: currentRoom,
+                    user: currentUser,
+                    timestamp: Date.now()
+                };
+                ws.send(JSON.stringify(message));
+                ws.close();
+            } else {
+                updateStatus(false);
+                currentRoom = null;
+                currentUser = null;
+                users = {};
+                updateUsersList();
+            }
+        }
+
+        // ==================== ИНИЦИАЛИЗАЦИЯ ====================
+        window.addEventListener('load', function() {
+            log('🎵 Music Room загружен', 'system');
+            
+            // Автоматически подключаемся через 1 секунду если есть параметры в URL
+            setTimeout(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const autoRoom = urlParams.get('room');
+                const autoUser = urlParams.get('user');
+                
+                if (autoRoom) {
+                    document.getElementById('roomId').value = autoRoom;
+                }
+                if (autoUser) {
+                    document.getElementById('userId').value = autoUser;
+                }
+                
+                if (autoRoom && autoUser) {
+                    log('🔗 Автоматическое подключение...', 'system');
+                    setTimeout(() => connectToRoom(), 500);
+                } else {
+                    log('👆 Для начала подключитесь к комнате', 'system');
+                }
+            }, 1000);
+        });
+
+        function clearLogs() {
+            document.getElementById('messageLog').innerHTML = `
+                <div class="log-entry">[Система] Логи очищены</div>
+            `;
+        }
+
+        // Глобально экспортируем функции для отладки
+        window.MusicRoom = {
+            connectToRoom,
+            disconnectFromRoom,
+            sendControl,
+            loadYouTubeVideo,
+            loadMP3,
+            clearLogs,
+            getState: () => ({
+                ws: ws ? {
+                    readyState: ws.readyState,
+                    url: ws.url
+                } : null,
+                currentRoom,
+                currentUser,
+                users,
+                youtubePlayer: !!youtubePlayer,
+                isSyncing
+            })
+        };
+    </script>
+</body>
+</html>

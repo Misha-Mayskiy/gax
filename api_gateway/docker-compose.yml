@@ -1,0 +1,12 @@
+version: "3.9"
+
+services:
+  api-gateway:
+    build: ./api_gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"   # HTTP API Gateway
+    depends_on:
+      - user-service
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  room-service:
+    build: .
+    container_name: room-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_ADDR=redis:6379
+
+  redis:
+    image: redis:7-alpine
+    container_name: room-redis
+    ports:
+      - "6379:6379"

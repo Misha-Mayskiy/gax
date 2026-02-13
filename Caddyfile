@@ -1,0 +1,9 @@
+# Домен для фронтенда
+gax.mihanchos.ru {
+    reverse_proxy frontend:3000
+}
+
+# Домен для API
+gax-api.mihanchos.ru {
+    reverse_proxy api-gateway:8080
+}

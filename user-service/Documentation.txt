@@ -1,0 +1,201 @@
+Documentation :
+    Микросервис для управления пользовательскими аккаунтами с функциями CRUD, онлайн-статусами и интеграцией с Kafka.
+
+    Архитектура
+    gRPC API - основной интерфейс
+
+        PostgreSQL - основное хранилище
+
+    Redis - хранение онлайн-статусов
+
+    Kafka - асинхронные события
+
+
+Прото-файл (gRPC API)
+Основные методы:
+protobuf
+service UserService {
+  rpc CreateUser(CreateUserRequest) returns (UserResponse)
+  rpc UpdateUser(UpdateUserRequest) returns (UserResponse)
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse)
+  rpc AboutMeUser(AboutMeRequest) returns (UserResponse)
+  
+  // Онлайн-статусы
+  rpc SetOnline(SetOnlineRequest) returns (StatusResponse)
+  rpc SetOffline(SetOfflineRequest) returns (StatusResponse)
+  rpc IsOnline(IsOnlineRequest) returns (IsOnlineResponse)
+  rpc GetOnlineUsers(GetOnlineUsersRequest) returns (GetOnlineUsersResponse)
+}
+
+        Команды для работы
+        Пользователи (gRPC)
+        Создание пользователя:
+        
+        grpcurl -plaintext \
+        -d '{"email":"impaka@example.com","user_name":"Test User"}' \
+        localhost:8082 user.UserService/CreateUser
+        Обновление пользователя:
+        
+        grpcurl -plaintext \
+        -d '{"uuid":"6fbb4675-9e3b-432c-ab5c-0306bb276d1c","email":"new@email.com","user_name":"Updated Name"}' \
+        localhost:8082 user.UserService/UpdateUser
+        Удаление пользователя:
+        
+        grpcurl -plaintext \
+        -d '{"uuid":"ec9f5b52-6fd3-404a-bf1d-e5a929148117"}' \
+        localhost:8082 user.UserService/DeleteUser
+        Получение информации:
+        
+        grpcurl -plaintext \
+        -d '{"uuid":"ec9f5b52-6fd3-404a-bf1d-e5a929148117"}' \
+        localhost:8082 user.UserService/AboutMeUser
+        Онлайн-статусы:
+        
+        # Установить онлайн
+        grpcurl -plaintext \
+        -d '{"uuid":"user-uuid","ttl_seconds":300}' \
+        localhost:8082 user.UserService/SetOnline
+
+        # Проверить статус
+        grpcurl -plaintext \
+        -d '{"uuid":"user-uuid"}' \
+        localhost:8082 user.UserService/IsOnline
+
+        # Получить всех онлайн
+        grpcurl -plaintext \
+        localhost:8082 user.UserService/GetOnlineUsers
+
+
+            Docker команды
+                База данных:
+                
+                # Просмотр таблицы пользователей
+                docker exec -it user-postgres psql -U postgres -d users -c "SELECT * FROM users;"
+
+                # Войти в базу данных
+                docker exec -it user-postgres psql -U postgres -d users
+
+                # Удалить контейнер
+                docker rm -f user-postgres
+
+                # Посмотреть запущенные контейнеры
+                docker ps
+
+
+            Kafka:
+                bash
+                # Создать топик для пользователей
+                docker exec -it gax-kafka-kafka-1 /opt/kafka/bin/kafka-topics.sh \
+                --bootstrap-server kafka:9092 \
+                --create --topic users --partitions 1 --replication-factor 1
+
+                # Создать топик для поисковых событий
+                docker exec -it gax-kafka-kafka-1 /opt/kafka/bin/kafka-topics.sh \
+                --bootstrap-server kafka:9092 \
+                --create --topic search-events --partitions 1 --replication-factor 1
+
+
+
+                 ElasticSearch (для поиска):
+                    bash
+                    # Поиск пользователя по UUID
+                    curl -X GET "localhost:9200/users/_search?q=uuid:7b4d6a2e-0d73-4972-867e-1f0822367890&pretty"
+
+                     Git команды
+                        # Обновить репозиторий
+                        git status
+                        git add .
+                        git commit -m "Описание изменений"
+                        git push
+
+
+
+        Структура базы данных
+    Таблица users:
+    sql
+    CREATE TABLE users (
+        uuid UUID PRIMARY KEY,                    -- Уникальный ID
+        email VARCHAR(255) UNIQUE NOT NULL,       -- Email
+        user_name VARCHAR(100) NOT NULL,          -- Имя
+        avatar TEXT,                              -- Аватар
+        about_me TEXT,                            -- О себе
+        friends JSONB DEFAULT '[]',               -- Друзья
+        status VARCHAR(20) DEFAULT 'offline',     -- Статус
+        created_at TIMESTAMPTZ DEFAULT NOW(),     -- Дата создания
+        updated_at TIMESTAMPTZ DEFAULT NOW()      -- Дата обновления
+    );
+
+
+            Безопасность
+        Форматы данных:
+        Создание пользователя (обязательные поля):
+        json
+        {
+        "email": "user@example.com",
+        "user_name": "Имя пользователя"
+        }
+        Опциональные поля:
+        json
+        {
+        "avatar": "https://example.com/avatar.jpg",
+        "about_me": "Описание...",
+        "friends": ["uuid1", "uuid2"]
+        }
+
+
+
+         Мониторинг
+    Проверка работоспособности:
+    gRPC сервер: Порт :8082
+
+    PostgreSQL: Порт 5435
+
+    Redis: Порт 6379
+
+    Kafka: Порт 29092
+
+        Логи:
+        Форматированные логи в консоли
+
+        Уровни: debug, info, warn, error, fatal
+
+        Настройка через LOG_LEVEL и LOG_PRETTY
+
+
+    Ошибки и отладка
+    Распространенные ошибки:
+    Пользователь не найден → Проверить UUID
+
+    Некорректный email → Проверить формат email
+
+    Нет имени пользователя → Указать user_name
+
+    Отладка:
+    bash
+    # Установить уровень логов debug
+    export LOG_LEVEL=debug
+
+    # Перезапустить сервис
+    docker-compose restart user-service
+
+
+            Поток данных
+        Создание пользователя:
+
+        text
+        gRPC → Сервис → PostgreSQL + Kafka → ElasticSearch
+        Онлайн-статус:
+
+        text
+        gRPC → Сервис → Redis (TTL: 5 минут)
+        Удаление пользователя:
+
+        text
+        gRPC → PostgreSQL → Kafka (событие удаления)
+
+
+Версия: 1.0.0
+Поддерживаемые языки: Go, gRPC
+Базы данных: PostgreSQL 15, Redis 7
+Брокер сообщений: Kafka
+Логирование: Zerolog

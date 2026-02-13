@@ -1,0 +1,352 @@
+Documentation:
+  Микросервис для управления чатами и сообщениями с поддержкой личных и групповых диалогов, избранных сообщений и интеграцией с Kafka.
+
+      Архитектура
+    gRPC API - основной интерфейс
+
+    MongoDB - основное хранилище чатов и сообщений
+
+    Kafka - асинхронные события для поиска и уведомлений
+
+    User Service - интеграция с сервисом пользователей
+
+  Прото-файл (gRPC API)
+  Основные методы:
+  protobuf
+  service ChatService {
+    // Чаты
+    rpc CreateDirectChat (CreateDirectChatRequest) returns (ChatResponse);
+    rpc CreateGroupChat (CreateGroupChatRequest) returns (ChatResponse);
+    rpc UpdateGroupChat (UpdateGroupChatRequest) returns (ChatResponse);
+    rpc GetChat (GetChatRequest) returns (ChatResponse);
+    rpc ListChats (ListChatsRequest) returns (ListChatsResponse);
+    
+    // Сообщения
+    rpc SendMessage (SendMessageRequest) returns (MessageResponse);
+    rpc UpdateMessage (UpdateMessageRequest) returns (MessageResponse);
+    rpc DeleteMessage (DeleteMessageRequest) returns (DeleteMessageResponse);
+    rpc ListMessages (ListMessagesRequest) returns (ListMessagesResponse);
+    
+    // Дополнительные функции
+    rpc MarkRead (MarkReadRequest) returns (MarkReadResponse);
+    rpc ToggleSaved (ToggleSavedRequest) returns (ToggleSavedResponse);
+    rpc ListSaved (ListSavedRequest) returns (ListSavedResponse);
+    rpc ListReadMessages (ListReadMessagesRequest) returns (ListReadMessagesResponse);
+  }
+
+  1. Запуск сервиса
+  bash
+  # Клонировать проект
+  git clone <repository-url>
+  cd chat-service
+
+  # Создать ветку для разработки
+  git checkout -b chat-service
+
+  # Запуск с Docker Compose
+  docker-compose up -d
+
+  2. Конфигурация
+  Создать файл .env:
+
+  env
+  MONGO_URI=mongodb://localhost:27017
+  MONGO_DB=chatdb
+  KAFKA_BROKER=localhost:29092
+  KAFKA_TOPIC_MESSAGES=messages
+  USER_SERVICE_ADDR=localhost:8082
+  CHAT_SERVICE_PORT=:8083
+  LOG_LEVEL=info
+  LOG_PRETTY=true
+
+  3. Генерация gRPC кода
+  bash
+  protoc \
+    -I api/proto \
+    --go_out=pkg/api --go_opt=paths=source_relative \
+    --go-grpc_out=pkg/api --go-grpc_opt=paths=source_relative \
+    api/proto/chat-service.proto
+
+      Команды для работы
+
+  Чаты
+    Создание приватного чата:
+    bash
+    grpcurl -plaintext \
+      -d '{"user_id":"6fbb4675-9e3b-432c-ab5c-0306bb276d1c","peer_id":"ab70f422-ff7e-4030-b83b-5520c133b512"}' \
+      localhost:8083 chat.ChatService/CreateDirectChat
+    Создание группового чата:
+    bash
+    grpcurl -plaintext \
+      -d '{"user_id":"ab70f422-ff7e-4030-b83b-5520c133b512","member_ids":["b035537e-3367-4373-8e5f-e40f050c3c69","7d35561c-e917-4f44-a9f9-6342a10db3d3"],"title":"Новый чат"}' \
+      localhost:8083 chat.ChatService/CreateGroupChat
+    Обновление группового чата:
+    bash
+    grpcurl -plaintext \
+      -d '{
+        "chat_id":"4207b4a1-f50a-431f-9644-ffdb87ad74ab",
+        "title":"Чат для важных переговоров",
+        "add_member_ids":["7c3cfd58-a942-49b4-9c89-aa12701165be"],
+        "remove_member_ids":["7d35561c-e917-4f44-a9f9-6342a10db3d3"],
+        "requester_id":"6466a27b-3228-41df-be68-b531da0fd492"
+      }' \
+      localhost:8083 chat.ChatService/UpdateGroupChat
+    Получение информации о чате:
+    bash
+    grpcurl -plaintext \
+      -d '{"chat_id":"4207b4a1-f50a-431f-9644-ffdb87ad74ab"}' \
+      localhost:8083 chat.ChatService/GetChat
+    Список чатов пользователя:
+    bash
+    grpcurl -plaintext \
+      -d '{"user_id":"6466a27b-3228-41df-be68-b531da0fd492","limit":10,"cursor":""}' \
+      localhost:8083 chat.ChatService/ListChats
+
+  Сообщения
+    Отправка сообщения:
+    bash
+    grpcurl -plaintext \
+      -d '{"chat_id":"4207b4a1-f50a-431f-9644-ffdb87ad74ab","author_id":"7c3cfd58-a942-49b4-9c89-aa12701165be","text":"Привет всем!"}' \
+      localhost:8083 chat.ChatService/SendMessage
+    Обновление сообщения:
+    bash
+    grpcurl -plaintext \
+      -d '{"message_id":"bd8158ea-e530-4948-ba1c-60817c1dedea","author_id":"ab70f422-ff7e-4030-b83b-5520c133b512","text":"Исправленный текст"}' \
+      localhost:8083 chat.ChatService/UpdateMessage
+    Удаление сообщения (мягкое удаление):
+    bash
+    grpcurl -plaintext \
+      -d '{"message_ids":["dab0fcea-a6ac-4788-bea3-a33c7866418e"],"requester_id":"ab70f422-ff7e-4030-b83b-5520c133b512","hard_delete":false}' \
+      localhost:8083 chat.ChatService/DeleteMessage
+    Удаление сообщения (полное удаление):
+    bash
+    grpcurl -plaintext \
+      -d '{"message_ids":["dab0fcea-a6ac-4788-bea3-a33c7866418e"],"requester_id":"ab70f422-ff7e-4030-b83b-5520c133b512","hard_delete":true}' \
+      localhost:8083 chat.ChatService/DeleteMessage
+    Список сообщений в чате:
+    bash
+    grpcurl -plaintext \
+      -d '{"chat_id":"4207b4a1-f50a-431f-9644-ffdb87ad74ab","limit":10,"cursor":""}' \
+      localhost:8083 chat.ChatService/ListMessages
+
+
+  Дополнительные функции
+    Отметка сообщения как прочитанного:
+    bash
+    grpcurl -plaintext \
+      -d '{"chat_id":"4207b4a1-f50a-431f-9644-ffdb87ad74ab","user_id":"7c3cfd58-a942-49b4-9c89-aa12701165be","message_id":"0a54dbf3-784a-4efa-9f04-bd217551d7fa"}' \
+      localhost:8083 chat.ChatService/MarkRead
+    Добавление сообщения в избранное:
+    bash
+    grpcurl -plaintext \
+      -d '{"user_id":"7c3cfd58-a942-49b4-9c89-aa12701165be","message_id":"0a54dbf3-784a-4efa-9f04-bd217551d7fa","saved":true}' \
+      localhost:8083 chat.ChatService/ToggleSaved
+    Удаление из избранного:
+    bash
+    grpcurl -plaintext \
+      -d '{"user_id":"7c3cfd58-a942-49b4-9c89-aa12701165be","message_id":"8beed4a7-ef6d-4554-ba0d-7a33282e9792","saved":false}' \
+      localhost:8083 chat.ChatService/ToggleSaved
+    Список избранных сообщений:
+    bash
+    grpcurl -plaintext \
+      -d '{"user_id":"7c3cfd58-a942-49b4-9c89-aa12701165be","limit":10,"cursor":""}' \
+      localhost:8083 chat.ChatService/ListSaved
+    Список прочитанных сообщений:
+    bash
+    grpcurl -plaintext \
+      -d '{"user_id":"7c3cfd58-a942-49b4-9c89-aa12701165be","chat_id":"4207b4a1-f50a-431f-9644-ffdb87ad74ab","limit":10}' \
+      localhost:8083 chat.ChatService/ListReadMessages
+
+  Docker команды
+  База данных (MongoDB):
+  bash
+  # Запуск MongoDB
+  docker-compose up -d mongo
+
+  # Проверить состояние
+  docker ps
+
+  # Подключиться к MongoDB
+  docker exec -it chat_mongo mongosh
+
+  # Остановить сервисы
+  docker-compose down
+
+  Kafka:
+    # Создать топик для сообщений
+    docker exec -it kafka-container /opt/kafka/bin/kafka-topics.sh \
+      --bootstrap-server kafka:9092 \
+      --create --topic messages --partitions 1 --replication-factor 1
+
+    # Создать топик для поисковых событий
+    docker exec -it kafka-container /opt/kafka/bin/kafka-topics.sh \
+      --bootstrap-server kafka:9092 \
+      --create --topic search-events --partitions 1 --replication-factor 1
+
+  Git команды
+  bash
+  # Проверить статус
+  git status
+
+  # Добавить изменения
+  git add .
+
+  # Создать коммит
+  git commit -m "Добавлена функциональность чатов"
+
+  # Отправить изменения
+  git push origin chat-service
+
+        Структура базы данных
+          Коллекция chats:
+          json
+          {
+            "id": "unique-chat-id",
+            "kind": "direct" | "group",
+            "member_ids": ["user-uuid-1", "user-uuid-2"],
+            "title": "Название группы",
+            "created_by": "creator-uuid",
+            "created_at": 1640995200
+          }
+
+          Коллекция messages:
+          json
+          {
+            "id": "unique-message-id",
+            "chat_id": "chat-id",
+            "author_id": "user-uuid",
+            "text": "Текст сообщения",
+            "media": [],
+            "created_at": 1640995200,
+            "updated_at": 1640995200,
+            "deleted": false
+          }
+          Коллекция saved_messages:
+          json
+          {
+            "user_id": "user-uuid",
+            "message_id": "message-id",
+            "saved_at": 1640995200
+          }
+          Коллекция read_receipts:
+          json
+          {
+            "message_id": "message-id",
+            "user_id": "user-uuid",
+            "read_at": 1640995200
+          }
+
+  Валидация и безопасность
+    Правила обновления групповых чатов:
+    Только создатель может изменять название и участников
+
+    Все добавляемые участники должны существовать в User Service
+
+    Невозможно удалить создателя из чата
+
+    Правила работы с сообщениями:
+    Только автор может редактировать/удалять сообщения
+
+    Soft delete по умолчанию (сообщение помечается удаленным)
+
+    Hard delete полностью удаляет сообщение из БД
+
+  Kafka события
+    Формат события нового сообщения:
+    json
+    {
+      "message_id": "msg-uuid",
+      "chat_id": "chat-uuid",
+      "author_id": "user-uuid",
+      "text": "Текст сообщения",
+      "timestamp": 1640995200
+    }
+    Формат поискового события:
+      json
+      {
+        "type": "message" | "chat",
+        "data": { /* объект сообщения или чата */ }
+      }
+
+  Отладка:
+    bash
+    # Установить уровень логов debug
+    export LOG_LEVEL=debug
+
+    # Перезапустить сервис
+    docker-compose restart chat-service
+
+    # Просмотр логов
+    docker-compose logs -f chat-service
+
+  Интеграция с User Service
+    Проверка пользователей:
+    При создании группового чата проверяются все участники
+
+    При добавлении участников в группу проверяется их существование
+
+    Используется gRPC вызов к User Service (AboutMeUser)  
+
+    Формат запроса к User Service:
+      bash
+      grpcurl -plaintext \
+        -d '{"uuid":"user-uuid"}' \
+        localhost:8082 user.UserService/AboutMeUserПроизводительность
+  Индексы MongoDB:
+    javascript
+      // Для быстрого поиска чатов пользователя
+      db.chats.createIndex({ "member_ids": 1 })
+
+      // Для поиска сообщений в чате
+      db.messages.createIndex({ "chat_id": 1, "created_at": -1 })
+
+      // Для поиска избранных сообщений
+      db.saved_messages.createIndex({ "user_id": 1, "saved_at": -1 })        
+
+  Пагинация:
+    Все методы списков поддерживают limit и cursor
+
+    Курсор основан на последнем ID элемента
+
+    По умолчанию limit = 10
+
+  Тестирование
+    Пример тестовых запросов:
+      Создание тестового чата:
+      bash
+      # Создать приватный чат
+      grpcurl -plaintext -d '{"user_id":"test-user-1","peer_id":"test-user-2"}' localhost:8083 chat.ChatService/CreateDirectChat
+
+      # Отправить тестовое сообщение
+      grpcurl -plaintext -d '{"chat_id":"test-chat","author_id":"test-user-1","text":"Тестовое сообщение"}' localhost:8083 chat.ChatService/SendMessage
+      Проверка данных в MongoDB:
+        javascript
+        // Подключиться к MongoDB
+        use chatdb
+
+        // Посмотреть все чаты
+        db.chats.find().pretty()
+
+        // Посмотреть все сообщения
+        db.messages.find().sort({created_at: -1}).limit(5).pretty()
+
+  Генерация прото-файлов:
+    bash
+    protoc --go_out=. --go-grpc_out=. chat.proto
+
+  Быстрые команды для разработки:
+    bash
+    # Пересборка и запуск
+    docker-compose up -d --build
+
+    # Полная перезагрузка
+    docker-compose down && docker-compose up -d
+
+    # Очистка логов
+    docker-compose logs --tail=100 chat-service
+
+Версия: 1.0.0
+Язык: Go 1.22+
+База данных: MongoDB 6
+Брокер сообщений: Kafka
+Интеграция: User Service (gRPC)

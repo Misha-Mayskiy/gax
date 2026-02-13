@@ -1,0 +1,378 @@
+Документация Media Service
+     Обзор
+    Media Service — это микросервис для управления файлами, который предоставляет REST API для загрузки, скачивания и управления медиафайлами. Использует PostgreSQL для метаданных и MinIO (S3-совместимое хранилище) для хранения файлов с опциональной интеграцией с Kafka для событий.
+
+     Архитектура
+        Компоненты системы
+        text
+        media-service/
+        ├── cmd/main.go                 # Точка входа
+        ├── internal/
+        │   ├── domain/                 # Модели данных
+        │   ├── repository/             # Репозитории (PostgreSQL, MinIO)
+        │   ├── service/                # Бизнес-логика
+        │   ├── transport/              # HTTP handlers
+        │   └── kafka/                  # Kafka продюсер
+        ├── migrations/                 # SQL миграции
+        └── Dockerfile                 # Контейнеризация
+        Технологический стек
+        Язык: Go 1.25+
+
+        База данных: PostgreSQL 14+
+
+        Хранилище файлов: MinIO (S3-совместимое)
+
+        Брокер сообщений: Apache Kafka (опционально)
+
+        Контейнеризация: Docker + Docker Compose
+
+        Роутинг: Gorilla Mux
+
+    Быстрый старт
+        1. Запуск через Docker Compose
+            
+            # Клонирование репозитория
+            git clone <repository-url>
+            cd media-service
+
+            # Запуск всех сервисов
+            docker-compose up -d
+            Сервисы будут доступны по адресам:
+
+            Media Service: http://localhost:8084
+
+            MinIO Console: http://localhost:9001 (логин: minioadmin / minioadmin123)
+
+            PostgreSQL: localhost:5434
+
+        2. Проверка работы
+            
+            # Проверка контейнеров
+            docker ps
+
+            # Логи media-service
+            docker logs media-service
+
+        # Health check
+        curl http://localhost:8084/health
+        3. Ручная установка
+            # Установка зависимостей
+            go mod download
+
+            # Настройка переменных окружения
+            export PORT=8084
+            export DB_URL="postgres://media_user:media_password@localhost:5432/media_db?sslmode=disable"
+            export MINIO_ENDPOINT="localhost:9000"
+            export MINIO_ACCESS_KEY="minioadmin"
+            export MINIO_SECRET_KEY="minioadmin123"
+
+            # Запуск миграций (если есть скрипт)
+            go run cmd/migrate/main.go
+
+            # Запуск сервиса
+            go run cmd/main.go
+            REST API Reference
+            Базовый URL
+            text
+            http://localhost:8084
+            Health Check
+            http
+            GET /health
+            Ответ:
+
+            json
+            {
+            "status": "ok",
+            "service": "media-service",
+            "version": "v1.0"
+            }
+            Загрузка файла
+            http
+            POST /media/upload
+            Content-Type: multipart/form-data
+            Параметры:
+
+            file (required): Файл для загрузки (макс. 50 МБ)
+
+        Пример запроса (cURL):
+
+        
+        curl -X POST \
+        http://localhost:8084/media/upload \
+        -F "file=@/path/to/your/file.jpg"
+        Успешный ответ (201):
+
+        json
+        {
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "filename": "file.jpg",
+        "bucket": "files",
+        "content_type": "image/jpeg",
+        "size": 1024000,
+        "created_at": "2024-01-15T10:30:00Z"
+        }
+        Скачивание файла
+        http
+        GET /download/{id}
+        Параметры пути:
+
+        id - UUID файла из ответа upload
+
+    Пример:
+
+    
+    curl -O http://localhost:8084/download/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+    Заголовки ответа:
+
+    Content-Type: оригинальный MIME-тип
+
+    Content-Disposition: inline с оригинальным именем файла
+
+    Content-Length: размер файла
+
+     Получение метаданных
+    http
+    GET /media/{id}
+    Ответ (200):
+
+    json
+    {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "filename": "document.pdf",
+    "bucket": "files",
+    "content_type": "application/pdf",
+    "size": 2048000,
+    "created_at": "2024-01-15T10:30:00Z"
+    }
+    Удаление файла
+    http
+    DELETE /media/delete/{id}
+    Ответ (200):
+
+    json
+    {
+    "status": "deleted"
+    }
+    
+    Структура базы данных
+    Таблица files
+    sql
+    CREATE TABLE files (
+        id UUID PRIMARY KEY,           -- Уникальный идентификатор
+        filename VARCHAR(255) NOT NULL, -- Оригинальное имя файла
+        bucket VARCHAR(50) NOT NULL,   -- Бакет MinIO (всегда 'files')
+        object_name VARCHAR(255) NOT NULL, -- Имя объекта в MinIO (равно id)
+        content_type VARCHAR(100),     -- MIME-тип
+        size BIGINT,                   -- Размер в байтах
+        created_at TIMESTAMP DEFAULT NOW() -- Время создания
+    );
+    Индексы (рекомендуемые)
+    sql
+    CREATE INDEX idx_files_created_at ON files(created_at);
+    CREATE INDEX idx_files_filename ON files(filename);
+     Конфигурация
+    Переменные окружения
+    Переменная	Описание	Значение по умолчанию
+    PORT	Порт HTTP сервера	8084
+    DB_URL	URL подключения к PostgreSQL	postgres://media_user:media_password@postgres:5432/media_db?sslmode=disable
+    MINIO_ENDPOINT	Адрес MinIO сервера	minio:9000
+    MINIO_ACCESS_KEY	Ключ доступа MinIO	minioadmin
+    MINIO_SECRET_KEY	Секретный ключ MinIO	minioadmin123
+    MINIO_BUCKET	Имя бакета по умолчанию	files
+    MINIO_USE_SSL	Использовать SSL	false
+    KAFKA_BROKER	Адрес Kafka брокера	(опционально)
+    MAX_UPLOAD_SIZE	Макс. размер файла (в байтах)	52428800 (50 МБ)
+    Конфигурация Docker Compose
+    yaml
+    services:
+    media-service:
+        build: .
+        ports:
+        - "8084:8084"
+        environment:
+        PORT: 8084
+        DB_URL: "postgres://media_user:media_password@postgres:5432/media_db?sslmode=disable"
+        MINIO_ENDPOINT: minio:9000
+        MINIO_ACCESS_KEY: minioadmin
+        MINIO_SECRET_KEY: minioadmin123
+        KAFKA_BROKER: "kafka:9092"  # Опционально
+        depends_on:
+        - minio
+        - postgres
+        - kafka  # Если используется
+     Разработка
+        Сборка проекта
+        
+        # Локальная сборка
+        go build -o bin/media-service cmd/main.go
+
+        # Сборка Docker образа
+        docker build -t media-service:latest .
+
+        # Запуск тестов
+        go test ./...
+    Структура проекта
+        Domain слой
+        go
+        // domain/file_meta.go
+        type FileMeta struct {
+            ID          string    `json:"id"`
+            Filename    string    `json:"filename"`
+            Bucket      string    `json:"bucket"`
+            ObjectName  string    `json:"-"`  // Не сериализуется в JSON
+            ContentType string    `json:"content_type"`
+            Size        int64     `json:"size"`
+            CreatedAt   time.Time `json:"created_at"`
+        }
+        Service слой
+        go
+        // service/media_service.go
+        type MediaService struct {
+            pg    FileMetadataRepository  // PostgreSQL
+            minio BlobStorage             // MinIO
+            kafka EventProducer           // Kafka (опционально)
+        }
+
+        // Основные методы:
+        // - UploadFile: загрузка файла в MinIO и сохранение метаданных
+        // - DownloadFile: получение файла и метаданных
+        // - GetMeta: только метаданные
+        // - DeleteFile: удаление из обоих хранилищ
+        Repository слой
+        PgRepo: CRUD операции с метаданными в PostgreSQL
+
+        MinioRepo: Операции с файлами в MinIO (S3)
+
+        Transport слой
+        Handler: HTTP обработчики с валидацией
+
+        Middleware: (можно добавить) аутентификацию, логирование
+
+    Безопасность
+        Текущие меры
+        Лимит размера файла: 50 МБ
+
+        Валидация MIME-типов: на уровне MinIO
+
+        UUID идентификаторы: вместо предсказуемых ID
+
+        Изоляция Docker: каждый сервис в отдельном контейнере
+
+        Рекомендации для production
+        Аутентификация: Добавить JWT/middleware
+
+        HTTPS: Обязательно для production
+
+        CORS: Настроить для веб-приложений
+
+        Rate Limiting: Ограничить частоту запросов
+
+        Антивирусное сканирование: Для загружаемых файлов
+
+        Интеграция с Kafka
+        Конфигурация
+        bash
+        export KAFKA_BROKER="kafka:9092"
+        Отправляемые события
+        json
+        {
+        "event_type": "FileUploaded",
+        "payload": {
+            "id": "uuid",
+            "filename": "file.jpg",
+            "content_type": "image/jpeg",
+            "size": 1024000,
+            "created_at": "2024-01-15T10:30:00Z"
+        },
+        "timestamp": 1705314600
+        }
+    Топики
+        file.events - все события связанные с файлами
+
+        Потребители событий
+        Сервис уведомлений: Отправка email о загрузке
+
+        Аналитика: Сбор статистики по файлам
+
+        Поисковый индекс: Индексация метаданных
+
+        Репликация: Копирование в backup хранилище
+
+        Отладка и устранение неисправностей
+
+    Общие проблемы
+        1. MinIO недоступен
+        bash
+        # Проверка MinIO
+        curl http://localhost:9000/minio/health/live
+
+        # Создание бакета вручную
+        docker exec minio mc mb minio/files
+        2. Ошибка базы данных
+        bash
+        # Проверка подключения к PostgreSQL
+        docker exec media-postgres psql -U media_user -d media_db -c "\dt"
+
+        # Создание таблицы вручную
+        docker exec media-postgres psql -U media_user -d media_db -f /path/to/create_table.sql
+        3. Ошибка загрузки файла
+        bash
+        # Проверка логов
+        docker logs media-service --tail 50
+
+    # Проверка свободного места
+    docker exec minio df -h
+    Логи ошибок
+    Ошибка	Причина	Решение
+    Invalid file	Неправильный multipart запрос	Проверить форму загрузки
+    Not found	Файл не существует	Проверить UUID
+    connection refused	MinIO/PostgreSQL недоступен	Проверить Docker Compose
+    413 Request Entity Too Large	Файл > 50 МБ	Уменьшить размер файла
+    Производительность
+        Оптимизации
+            Streaming загрузка: Файлы передаются потоком без буферизации
+
+            Connection pooling: Для PostgreSQL и MinIO
+
+            Асинхронная Kafka: Не блокирует основной поток
+
+            Кеширование метаданных: (планируется) Redis для частых запросов
+
+            Лимиты
+            Максимальный размер файла: 50 МБ
+
+            Поддерживаемые форматы: любые (MIME-типы)
+
+            Одновременные загрузки: ограничено памятью контейнера
+
+            Улучшения API
+            GET /media/list - список файлов с пагинацией
+
+            PATCH /media/{id} - обновление метаданных
+
+            POST /media/copy - копирование файлов
+
+            WebSocket для прогресса загрузки
+
+    Тестирование
+        Примеры тестовых запросов
+        bash
+        # 1. Загрузка тестового файла
+        curl -X POST http://localhost:8084/media/upload \
+        -F "file=@test.jpg"
+
+        # 2. Получение метаданных
+        curl http://localhost:8084/media/{UUID_FROM_STEP_1}
+
+        # 3. Скачивание файла
+        curl -O http://localhost:8084/download/{UUID_FROM_STEP_1}
+
+        # 4. Удаление файла
+        curl -X DELETE http://localhost:8084/media/delete/{UUID_FROM_STEP_1}
+        Автоматические тесты
+        bash
+        # Запуск unit-тестов
+        go test ./internal/service -v
+
+        # Запуск интеграционных тестов
+        go test ./internal/integration -v

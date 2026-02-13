@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAX Messenger</title>
+    <style>
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+    background: #f0f2f5;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Авторизация */
+.auth-screen {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 100;
+}
+
+.auth-card {
+    background: white;
+    border-radius: 20px;
+    padding: 40px;
+    width: 400px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.auth-title {
+    text-align: center;
+    font-size: 32px;
+    margin-bottom: 30px;
+    color: #212529;
+}
+
+.auth-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+.form-input:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+.btn {
+    padding: 14px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-primary {
+    background: #007bff;
+    color: white;
+}
+
+.btn-primary:hover {
+    background: #0056b3;
+}
+
+/* Основной интерфейс */
+.container {
+    width: 100%;
+    max-width: 1200px;
+    height: 90vh;
+    background: white;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.1);
+    display: flex;
+}
+
+/* Левая панель */
+.sidebar {
+    width: 300px;
+    background: #f8f9fa;
+    border-right: 1px solid #e9ecef;
+    display: flex;
+    flex-direction: column;
+}
+
+.user-info {
+    padding: 20px;
+    background: white;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.user-name {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 5px;
+}
+
+.user-status {
+    font-size: 12px;
+    color: #6c757d;
+}
+
+.chat-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.chat-item {
+    padding: 12px;
+    margin-bottom: 8px;
+    background: white;
+    border-radius: 12px;
+    cursor: pointer;
+    border: 2px solid transparent;
+}
+
+.chat-item:hover {
+    background: #e9ecef;
+}
+
+.chat-item.active {
+    background: #007bff;
+    color: white;
+    border-color: #0056b3;
+}
+
+.chat-name {
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.chat-last-msg {
+    font-size: 14px;
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Правая панель */
+.main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.chat-header {
+    padding: 20px;
+    border-bottom: 1px solid #e9ecef;
+    background: white;
+}
+
+.chat-title {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: #f8f9fa;
+}
+
+.message {
+    max-width: 70%;
+    margin-bottom: 15px;
+}
+
+.message.sent {
+    margin-left: auto;
+}
+
+.message-content {
+    padding: 12px 16px;
+    border-radius: 18px;
+    background: white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.message.sent .message-content {
+    background: #007bff;
+    color: white;
+}
+
+.message-time {
+    font-size: 11px;
+    opacity: 0.7;
+    margin-top: 4px;
+    text-align: right;
+}
+
+.input-area {
+    padding: 20px;
+    background: white;
+    border-top: 1px solid #e9ecef;
+    display: flex;
+    gap: 10px;
+}
+
+.message-input {
+    flex: 1;
+    padding: 12px 20px;
+    border: 1px solid #e9ecef;
+    border-radius: 24px;
+    font-size: 16px;
+    outline: none;
+}
+
+.message-input:focus {
+    border-color: #007bff;
+}
+
+.btn-send {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.btn-send:hover {
+    background: #0056b3;
+}
+
+/* Утилиты */
+.hidden {
+    display: none !important;
+}
+
+.scrollable::-webkit-scrollbar {
+    width: 6px;
+}
+
+.scrollable::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.scrollable::-webkit-scrollbar-thumb {
+    background: #adb5bd;
+    border-radius: 3px;
+}
+
+/* Кнопки действий */
+.action-buttons {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.action-btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: white;
+    color: #007bff;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.action-btn:hover {
+    background: #e9ecef;
+}
+    </style>
+</head>
+<body>
+    <!-- Отладка -->
+    <div id="debug">
+        <strong>Отладка:</strong>
+        <div id="debugInfo">Загрузка...</div>
+    </div>
+
+    <!-- Экран авторизации -->
+    <div id="authScreen" class="auth-screen">
+        <div class="auth-card">
+            <h1 class="auth-title">📱 GAX Messenger</h1>
+            <div class="auth-form">
+                <input type="text" id="username" class="form-input" placeholder="Имя пользователя" value="Тестовый пользователь">
+                <input type="email" id="email" class="form-input" placeholder="Email" value="test@example.com">
+                <button onclick="initApp()" class="btn btn-primary">Начать</button>
+                <div id="authStatus" style="text-align: center; margin-top: 20px; font-size: 14px; color: #6c757d;">
+                    Демо версия - все данные хранятся локально
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Основной интерфейс -->
+    <div id="mainScreen" class="container">
+        <!-- Левая панель -->
+        <div class="sidebar">
+            <div class="user-info">
+                <div class="user-name" id="currentUserName">Пользователь</div>
+                <div class="user-status" id="currentUserStatus">🟢 Онлайн</div>
+            </div>
+            
+            <div class="chat-list scrollable" id="chatList">
+                <!-- Чаты будут загружены здесь -->
+            </div>
+            
+            <div class="action-buttons">
+                <button class="action-btn" onclick="createDirectChat()">
+                    <span>💬</span> Новый чат
+                </button>
+                <button class="action-btn" onclick="createGroupChat()">
+                    <span>👥</span> Новая группа
+                </button>
+                <button class="action-btn" onclick="clearData()">
+                    <span>🗑️</span> Очистить данные
+                </button>
+            </div>
+        </div>
+
+        <!-- Правая панель -->
+        <div class="main">
+            <div class="chat-header">
+                <div class="chat-title" id="chatTitle">Выберите чат</div>
+            </div>
+            
+            <div class="messages scrollable" id="messagesContainer">
+                <div class="message system">
+                    <div class="message-content">
+                        Добро пожаловать в GAX Messenger!<br>
+                        Выберите чат из списка слева или создайте новый.
+                    </div>
+                </div>
+            </div>
+            
+            <div class="input-area">
+                <input type="text" 
+                       id="messageInput" 
+                       class="message-input" 
+                       placeholder="Введите сообщение..." 
+                       onkeypress="if(event.key === 'Enter' && !event.shiftKey) sendMessage()">
+                <button class="btn-send" onclick="sendMessage()" id="sendBtn" title="Отправить (Enter)">
+                    📤
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

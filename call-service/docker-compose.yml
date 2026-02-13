@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  call-RDS:
+    image: redis:alpine
+    container_name: call-RDS
+    restart: always
+    ports:
+      - "127.0.0.1:6380:6379"
+
+  call-service:
+    build: .
+    container_name: call-service
+    restart: always
+    network_mode: host
+    environment:
+      - PORT=8086
+      - REDIS_ADDR=127.0.0.1:6380
+      - PUBLIC_IP=127.0.0.1 # Изменить при хостинге
+    depends_on:
+      - call-RDS

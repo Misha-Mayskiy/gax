@@ -1,0 +1,263 @@
+ Обзор
+Auth Service - это микросервис аутентификации, реализующий регистрацию, вход и управление паролями пользователей. Сервис построен на основе gRPC с использованием Go и PostgreSQL.
+
+    Архитектура
+        Компоненты системы
+        text
+        auth-service/
+        ├── cmd/
+        │   ├── server/        # Основное приложение
+        │   └── migrate/       # Миграции БД
+        ├── internal/
+        │   ├── config/        # Конфигурация
+        │   ├── repository/    # Работа с БД
+        │   ├── service/       # Бизнес-логика
+        │   └── transport/     # gRPC обработчики
+        ├── pkg/
+        │   ├── api/           # Protobuf сгенерированный код
+        │   ├── db/            # Подключение к БД
+        │   └── utils/         # Вспомогательные функции
+        └── migrations/        # SQL миграции
+    Быстрый старт
+    Требования
+    Docker и Docker Compose
+
+    Go 1.25+
+
+    Запуск через Docker Compose
+    Клонирование и настройка:
+
+    git clone <repository>
+    cd auth-service
+    Запуск сервисов:
+
+    
+    docker-compose up -d
+    Проверка работы:
+
+    
+    # Проверяем контейнеры
+    docker ps
+
+    # Логи приложения
+    docker logs auth_server
+
+    # Логи базы данных
+    docker logs auth_db
+    Ручная установка
+    Настройка окружения:
+
+    
+    cp config/.env.example config/.env
+    # Отредактируйте .env файл
+    Запуск миграций:
+
+    
+    # Из Docker
+    docker run --network host migrate up
+
+    # Или локально
+    go run cmd/migrate/main.go -command up
+    Запуск сервера:
+
+    
+    go run cmd/server/main.go
+    Запуск тестового клиента:
+
+    
+    go run cmd/client/main.go
+    API Reference
+    gRPC сервис
+    Protobuf спецификация
+    protobuf
+    service AuthService {
+    rpc Register(RegisterRequest) returns (RegisterResponse);
+    rpc Login(LoginRequest) returns (LoginResponse);
+    rpc PasswordChange(PasswordChangeRequest) returns (PasswordChangeResponse);
+    }
+    Методы API
+        1. Регистрация пользователя
+        Endpoint: /user.AuthService/Register
+
+        Запрос:
+
+        json
+        {
+        "username": "john_doe",
+        "email": "john@example.com",
+        "password": "secure_password123"
+        }
+        Успешный ответ:
+
+        json
+        {
+        "uuid": "550e8400-e29b-41d4-a716-446655440000",
+        "message": "Registration successful"
+        }
+        Ошибки:
+
+        400: "name taken" - имя пользователя занято
+
+        400: "email taken" - email уже используется
+
+        500: "cant generate password hash" - ошибка хэширования пароля
+
+        2. Аутентификация
+        Endpoint: /user.AuthService/Login
+
+        Запрос:
+
+        json
+        {
+        "email": "john@example.com",
+        "password": "secure_password123"
+        }
+        Успешный ответ:
+
+        json
+        {
+        "uuid": "550e8400-e29b-41d4-a716-446655440000",
+        "success": true,
+        "message": "Login successful"
+        }
+        Ошибки:
+
+        404: "user with this email not found" - пользователь не найден
+
+        401: "invalid password" - неверный пароль
+
+        3. Смена пароля
+        Endpoint: /user.AuthService/PasswordChange
+
+        Запрос:
+
+        json
+        {
+        "uuid": "550e8400-e29b-41d4-a716-446655440000",
+        "old_password": "old_password",
+        "new_password": "new_secure_password"
+        }
+        Успешный ответ:
+
+        json
+        {
+        "success": true,
+        "message": "Password changed successfully"
+        }
+        Структура базы данных
+        Таблица users
+        sql
+        CREATE TABLE users (
+            uuid UUID PRIMARY KEY,
+            username VARCHAR(255) UNIQUE NOT NULL,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            password VARCHAR(255) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+    Миграции
+        Миграции хранятся в папке migrations/:
+
+        000001_create_users_table.up.sql - создание таблицы
+
+        000001_create_users_table.down.sql - откат изменений
+
+    Команды миграции:
+
+        bash
+        # Применить миграции
+        ./migrate -command up
+
+        # Откатить последнюю миграцию
+        ./migrate -command down
+
+        # Проверить текущую версию
+        ./migrate -command version
+        Конфигурация
+        Переменные окружения (.env)
+        env
+        # База данных
+        POSTGRES_HOST=localhost
+        POSTGRES_PORT=5432
+        POSTGRES_USER=postgres
+        POSTGRES_PASSWORD=postgres
+        POSTGRES_DB=auth_db
+
+        # Сервер
+        GRPC_PORT=50051
+        Docker Compose конфигурация
+        yaml
+        services:
+        db:
+            image: postgres:15-alpine
+            environment:
+            POSTGRES_PASSWORD: postgres
+            POSTGRES_DB: auth_db
+            ports:
+            - "5432:5432"
+            
+        app:
+            build: .
+            ports:
+            - "50051:50051"
+            environment:
+            POSTGRES_HOST: db
+            GRPC_PORT: 50051
+        Разработка
+        Сборка проекта
+        
+        # Локальная сборка
+        go build -o bin/server cmd/server/main.go
+        go build -o bin/migrate cmd/migrate/main.go
+
+        # Docker сборка
+        docker build -t auth-service:latest .
+        Генерация gRPC кода
+        
+        # Установите protoc и плагины
+        go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.28
+        go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2
+
+        # Генерация
+        protoc --go_out=. --go-grpc_out=. pkg/api/user.proto
+        Тестирование
+        
+        # Запуск тестового клиента
+        go run cmd/client/main.go
+
+        # Пример вызова через grpcurl
+        grpcurl -plaintext -d '{"email":"test@mail.ru","password":"qwerty123"}' \
+        localhost:50051 user.AuthService/Login
+        Отладка и логирование
+        Логи сервера
+        Сервис выводит логи в консоль:
+
+        Информация о запуске и конфигурации
+
+        Ошибки подключения к БД
+
+        Статус gRPC сервера
+
+        Мониторинг
+        
+        # Проверка работы gRPC сервера
+        grpc_health_probe -addr=localhost:50051
+
+        # Проверка подключения к БД
+        docker exec auth_db pg_isready
+        Безопасность
+        Хранение паролей
+        Пароли хэшируются с использованием bcrypt
+
+        Используется salt для каждого пароля
+
+        Минимальная рекомендуемая длина пароля: 8 символов
+
+        Рекомендации по безопасности
+        Используйте HTTPS в production
+
+        Регулярно обновляйте зависимости
+
+        Ограничьте доступ к порту gRPC
+
+        Используйте сложные пароли для БД
+

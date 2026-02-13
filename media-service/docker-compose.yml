@@ -1,0 +1,56 @@
+services:
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:14-alpine
+    container_name: media-postgres
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: media_user
+      POSTGRES_PASSWORD: media_password
+      POSTGRES_DB: media_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  media-service:
+    build: .
+    container_name: media-service
+    ports:
+      - "8084:8084"  # Изменено с 8080 на 8084
+    environment:
+      PORT: 8084
+      DB_URL: postgres://media_user:media_password@postgres:5432/media_db?sslmode=disable
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin123
+      MINIO_BUCKET: media-bucket
+      MINIO_USE_SSL: "false"
+    depends_on:
+      minio:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  minio_data:
+  postgres_data:

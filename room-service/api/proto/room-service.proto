@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package room;
+
+option go_package = "main/pkg/api;api";
+
+// Запрос на создание комнаты
+message CreateRoomRequest {
+  string host_id = 1;
+  string track_url = 2;
+}
+
+message RoomResponse {
+  string room_id = 1;
+  string host_id = 2;
+  string track_url = 3;
+  int64 timestamp = 4;
+  string status = 5; // play/pause
+  repeated string users = 6;
+}
+
+// Присоединение к комнате
+message JoinRoomRequest {
+  string room_id = 1;
+  string user_id = 2;
+}
+
+// Управление воспроизведением
+message SetPlaybackRequest {
+  string room_id = 1;
+  string action = 2;     // play/pause/seek
+  int64 timestamp = 3;   // таймкод
+}
+
+// Получение состояния комнаты
+message GetStateRequest {
+  string room_id = 1;
+}
+
+service RoomService {
+  rpc CreateRoom(CreateRoomRequest) returns (RoomResponse);
+  rpc JoinRoom(JoinRoomRequest) returns (RoomResponse);
+  rpc SetPlayback(SetPlaybackRequest) returns (RoomResponse);
+  rpc GetState(GetStateRequest) returns (RoomResponse);
+}
